@@ -180,6 +180,7 @@ def main(argv=sys.argv, main_logger=None):
                     'iproute': impl_iproute.IprouteNetConfig,
                     'nmstate': impl_nmstate.NmstateNetConfig}
     purge_enabled = False
+    files_changed = {}
 
     if opts.provider:
         if opts.provider not in provider_map.keys():

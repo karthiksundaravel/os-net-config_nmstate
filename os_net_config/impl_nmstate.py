@@ -246,7 +246,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.execute(msg, *cmd)
 
     def rollback_to_initial_settings(self):
-        logger.info("Rolling back to initial settings , SKIPPING")
+        logger.info("Rolling back to initial settings")
         cur_state = netinfo.show_running_config()
         diff_state = gen_diff.generate_differences(self.initial_state,
                                                    cur_state)

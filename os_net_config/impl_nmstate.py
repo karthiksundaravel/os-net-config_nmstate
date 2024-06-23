@@ -499,10 +499,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
         : param interface_name: interface name for which routes are required
         """
 
-        reqd_route = self.route_data.get(interface_name, [])
+        add_routes = self.route_data.get(interface_name, [])
         curr_routes = self.route_state(interface_name)
 
-        routes = []
+        add_routes = []
+        del_routes = []
         self.__dump_config(curr_routes,
                            msg=f'Running route config for {interface_name}')
         self.__dump_config(reqd_route,
@@ -523,10 +524,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 no_tableid not in reqd_route and \
                 bare_min_route not in reqd_route:
                 c_route[NMRoute.STATE] = NMRoute.STATE_ABSENT
-                routes.append(c_route)
+                del_routes.append(c_route)
                 logger.info(f'Removing route {c_route}')
-        routes.extend(reqd_route)
-        return routes
+        return add_routes, del_routes, curr_routes
 
     def generate_rules(self):
         """Generate the rule configurations required. Add/Remove rules
@@ -1625,7 +1625,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
             logger.info('Cleaning up all network configs...')
             self.cleanup_all_ifaces()
 
-        apply_routes = []
+        apply_add_routes = []
+        apply_del_routes = []
+
         updated_interfaces = {}
         logger.debug("----------------------------")
         vf_config = self.prepare_sriov_vf_config()
@@ -1639,9 +1641,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
             else:
                 logger.info('No changes required for interface: '
                             f'{interface_name}')
-            routes_data = self.generate_routes(interface_name)
-            logger.info(f'Routes_data {routes_data}')
-            apply_routes.extend(routes_data)
+            add_r, del_r, cur_r = self.generate_routes(interface_name)
+            logger.info(f'Adding Routes: {add_r')
+            logger.info(f'Removing Routes: {del_r}')
+            apply_add_routes.extend(add_r)
+            apply_del_routes.extend(del_r)
+            total_cur_routes.extend(cur_r)
 
         for bridge_name, bridge_data in self.bridge_data.items():
 
@@ -1652,9 +1657,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 logger.info('No changes required for bridge: %s' %
                             bridge_name)
 
-            routes_data = self.generate_routes(bridge_name)
-            logger.info(f'Routes_data {routes_data}')
-            apply_routes.extend(routes_data)
+            add_r, del_r, cur_r = self.generate_routes(bridge_name)
+            logger.info(f'Adding Routes: {add_r')
+            logger.info(f'Removing Routes: {del_r}')
+            apply_add_routes.extend(add_r)
+            apply_del_routes.extend(del_r)
+            total_cur_routes.extend(cur_r)
 
         for bond_name, bond_data in self.linuxbond_data.items():
             bond_state = self.iface_state(bond_name)
@@ -1663,9 +1671,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
             else:
                 logger.info('No changes required for bond: %s' %
                             bond_name)
-            routes_data = self.generate_routes(bond_name)
-            logger.info('Routes_data %s' % routes_data)
-            apply_routes.extend(routes_data)
+            add_r, del_r, cur_r = self.generate_routes(bond_name)
+            logger.info(f'Adding Routes: {add_r')
+            logger.info(f'Removing Routes: {del_r}')
+            apply_add_routes.extend(add_r)
+            apply_del_routes.extend(del_r)
+            total_cur_routes.extend(cur_r)
 
         for vlan_name, vlan_data in self.vlan_data.items():
             vlan_state = self.iface_state(vlan_name)
@@ -1674,12 +1685,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
             else:
                 logger.info('No changes required for vlan interface: %s' %
                             vlan_name)
-            routes_data = self.generate_routes(vlan_name)
-            logger.info('Routes_data %s' % routes_data)
-            apply_routes.extend(routes_data)
+            add_r, del_r, cur_r = self.generate_routes(vlan_name)
+            logger.info(f'Adding Routes: {add_r')
+            logger.info(f'Removing Routes: {del_r}')
+            apply_add_routes.extend(add_r)
+            apply_del_routes.extend(del_r)
+            total_cur_routes.extend(cur_r)
 
         apply_data.update(self.set_ifaces(list(updated_interfaces.values())))
-        apply_data.update(self.set_routes(apply_routes))
 
         if config_rules_dns:
             rules_data = self.generate_rules()
@@ -1691,7 +1704,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         if activate:
             if not self.noop:
-                self.nmstate_apply(apply_data, verify=True)
+                try:
+                    self.nmstate_apply(apply_del_routes, verify=True)
+                    self.nmstate_apply(apply_add_routes, verify=True)
+                    self.nmstate_apply(apply_data, verify=True)
+                except:
+                    self.nmstate_apply(total_cur_routes, verify=True)
 
             if self.errors:
                 message = 'Failure(s) occurred when applying configuration'

@@ -44,6 +44,9 @@ _ROUTE_TABLE_DEFAULT = """# reserved values
 #1\tinr.ruhep\n"""
 
 
+def purge_ifcfg(iface_name):
+
+
 def ifcfg_config_path(name):
     return "/etc/sysconfig/network-scripts/ifcfg-%s" % name
 
@@ -2013,3 +2016,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 raise os_net_config.ConfigurationError(message)
 
         return update_files
+
+    def purge(self, iface_name):
+        ifcfg_file = ifcfg_config_path(iface_name)
+        logger.info(f'Purging interface: {iface_name}')
+        self.ifdown(interface_name)
+        self.remove_config(ifcfg_file)

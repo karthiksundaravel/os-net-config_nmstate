@@ -756,7 +756,7 @@ class TestNmstateNetConfig(base.TestCase):
         ipv6:
             autoconf: False
             dhcp: False
-            enabled: False
+            enabled: True
         """
         expected_brctl_cfg = """
         name: br-ctlplane
@@ -799,7 +799,7 @@ class TestNmstateNetConfig(base.TestCase):
         ipv6:
             autoconf: False
             dhcp: False
-            enabled: False
+            enabled: True
         """
         expected_brctl2_cfg = """
         name: br-ctlplane2
@@ -1398,11 +1398,11 @@ class TestNmstateNetConfig(base.TestCase):
         type: ethernet
         ethernet:
             sr-iov:
-              total-vfs: 10
-              drivers-autoprobe: true
+                total-vfs: 10
+                drivers-autoprobe: true
         ethtool:
-           feature:
-               hw-tc-offload: False
+            feature:
+                hw-tc-offload: False
         ipv4:
             dhcp: False
             enabled: False

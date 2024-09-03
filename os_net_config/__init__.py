@@ -99,6 +99,10 @@ class NetConfig(object):
         logger.info('Migration is not supported for this provider')
         return
 
+    def roll_back_migration(self):
+        logger.info('roll back migration is not supported for this provider')
+        return
+
     def clean_migration(self):
         logger.info('clean migration is not supported for this provider')
         return
@@ -189,9 +193,9 @@ class NetConfig(object):
         raise NotImplementedError("add_route_table is not implemented.")
 
     def del_route_table(self, route_table):
-        """Delete  a route table object to the net config object.
+        """Delete a route table object to the net config object.
 
-        :param route_table: The RouteTable object to del.
+        :param route_table: The RouteTable object to be deleted.
         """
         raise NotImplementedError("del_route_table is not implemented.")
 
@@ -203,9 +207,9 @@ class NetConfig(object):
         raise NotImplementedError("add_interface is not implemented.")
 
     def del_interface(self, interface):
-        """del an Interface object to the net config object.
+        """Delete the Interface object to the net config object.
 
-        :param interface: The Interface object to add.
+        :param interface: The Interface object to be deleted.
         """
         raise NotImplementedError("del_interface is not implemented.")
 
@@ -217,9 +221,9 @@ class NetConfig(object):
         raise NotImplementedError("add_vlan is not implemented.")
 
     def del_vlan(self, vlan):
-        """del a Vlan object to the net config object.
+        """Delete a Vlan object to the net config object.
 
-        :param vlan: The vlan object to del.
+        :param vlan: The vlan object to be deleted.
         """
         raise NotImplementedError("del_vlan is not implemented.")
 
@@ -231,9 +235,9 @@ class NetConfig(object):
         raise NotImplementedError("add_bridge is not implemented.")
 
     def del_bridge(self, bridge):
-        """Del an OvsBridge object to the net config object.
+        """Delete an OvsBridge object to the net config object.
 
-        :param bridge: The OvsBridge object to del.
+        :param bridge: The OvsBridge object to be deleted.
         """
         raise NotImplementedError("del_bridge is not implemented.")
 

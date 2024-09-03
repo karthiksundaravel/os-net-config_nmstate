@@ -61,9 +61,12 @@ def parse_opts(argv):
                         help="""The root directory of the filesystem.""",
                         default='')
     parser.add_argument('--purge-provider', metavar='PURGE_PROVIDER',
-                        help="""To be used along with --purge-file.
-                        The provider required to remove the config
-                        mentioned in --purge-file.""",
+                        help="""Enable a migration from one provider."""
+                        """Cleans the network configurations created by """
+                        """the specified provider and migrates the same """
+                        """network configuration to the desired provider."""
+                        """There shall be no change in the input network """
+                        """configuration during the migration.""",
                         default=None)
     parser.add_argument('--detailed-exit-codes',
                         action='store_true',
@@ -198,6 +201,7 @@ def main(argv=sys.argv, main_logger=None):
             return 1
 
     if opts.purge_provider:
+        main_logger.info(f'Purging the provider {opts.purge_provider}')
         if opts.purge_provider == opts.provider:
             main_logger.error('purge-provider and provider can\'t be the same')
             return 1
@@ -319,6 +323,10 @@ def main(argv=sys.argv, main_logger=None):
             obj = objects.object_from_json(iface_json)
         except utils.SriovVfNotFoundException:
             continue
+        except Exception:
+            if purge_enabled:
+                purge_provider.roll_back_migration()
+
         if _is_sriovpf_obj_found(obj):
             configure_sriov = True
             provider.add_object(obj)
@@ -343,9 +351,14 @@ def main(argv=sys.argv, main_logger=None):
         # In the second parse, when these ifcfgs for PFs are encountered,
         # os-net-config skips the ifup <ifcfg-pfs>, since the ifcfgs for PFs
         # wouldn't have changed.
-        pf_files_changed = provider.apply(cleanup=opts.cleanup,
-                                          activate=not opts.no_activate,
-                                          config_rules_dns=False)
+        try:
+            pf_files_changed = provider.apply(cleanup=opts.cleanup,
+                                              activate=not opts.no_activate,
+                                              config_rules_dns=False)
+        except Exception:
+            if purge_enabled:
+                purge_provider.roll_back_migration()
+
         if opts.provider == 'ifcfg' and not opts.noop:
             restart_ovs = bool(sriovpf_bond_ovs_ports)
             # Avoid ovs restart for os-net-config re-runs, which will
@@ -367,14 +380,22 @@ def main(argv=sys.argv, main_logger=None):
         except utils.SriovVfNotFoundException:
             if not opts.noop:
                 raise
+        except Exception:
+            if purge_enabled:
+                purge_provider.roll_back_migration()
+
         if not _is_sriovpf_obj_found(obj):
             provider.add_object(obj)
 
     if opts.provider == 'ifcfg' and configure_sriov and not opts.noop:
         utils.configure_sriov_vfs()
 
-    files_changed = provider.apply(cleanup=opts.cleanup,
-                                   activate=not opts.no_activate)
+    try:
+        files_changed = provider.apply(cleanup=opts.cleanup,
+                                       activate=not opts.no_activate)
+    except Exception:
+        if purge_enabled:
+            purge_provider.roll_back_migration()
 
     if utils.is_dcb_config_required():
         # Apply the DCB Config

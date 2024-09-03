@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+from libnmstate import error
+from libnmstate import gen_diff
 from libnmstate import netapplier
 from libnmstate import netinfo
 from libnmstate.schema import Bond
@@ -242,6 +244,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
         cmd = ['nmcli', 'connection', 'reload']
         msg = "Reloading nmcli connections"
         self.execute(msg, *cmd)
+
+    def rollback_to_initial_settings(self):
+        logger.info("Rolling back to initial settings , SKIPPING")
+        cur_state = netinfo.show_running_config()
+        diff_state = gen_diff.generate_differences(self.initial_state,
+                                                   cur_state)
+        msg = "Applying diff state "
+        self.__dump_key_config(diff_state, msg=msg)
+        netapplier.apply(diff_state, verify_change=True)
 
     def __dump_config(self, config, msg="Applying config"):
         cfg_dump = yaml.dump(config, default_flow_style=False,
@@ -525,8 +536,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.__dump_key_config(new_state,
                                msg=f'Applying the config with nmstate')
         if not self.noop:
-            netapplier.apply(new_state, verify_change=verify)
-        return 0
+            try:
+                netapplier.apply(new_state, verify_change=verify)
+            except error.NmstateVerificationError as exc:
+                logger.error(f'**** Verification Error *****')
+                logger.error(f'Error seen while applying the nmstate '
+                             f'templates {exc}')
+                self.errors.append(exc)
+            except error.NmstateError as exc:
+                logger.error(f'Error seen while applying the nmstate '
+                             f'templates {exc}')
+                self.errors.append(exc)
 
     def generate_routes(self, interface_name):
         """Generate the route configurations required. Add/Remove routes
@@ -1744,7 +1764,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if vf_config and activate:
             if not self.noop:
                 logger.debug("Applying the VF parameters")
-                self.nmstate_apply(self.set_ifaces(vf_config), verify=True)
+                self.nmstate_apply(self.set_ifaces(vf_config),
+                                   verify=True)
 
         for interface_name, iface_data in self.interface_data.items():
             iface_state = self.iface_state(interface_name)
@@ -1828,6 +1849,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 logger.error(message)
                 for e in self.errors:
                     logger.error(str(e))
+                self.rollback_to_initial_settings()
                 raise os_net_config.ConfigurationError(message)
 
         self.interface_data = {}

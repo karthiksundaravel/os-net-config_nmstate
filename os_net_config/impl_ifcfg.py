@@ -47,6 +47,7 @@ _ROUTE_TABLE_DEFAULT = """# reserved values
 #1\tinr.ruhep\n"""
 
 PURGE_IFCFG_FILES = '/var/lib/os-net-config/ifcfg-purge/'
+NETWORK_SCRIPTS_PATH = '/etc/sysconfig/network-scripts/'
 
 
 def ifcfg_config_path(name):
@@ -989,9 +990,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(bond.name, bond.rules)
 
     def del_bond(self, bond):
-        """Del an OvsBond object to the net config object.
+        """Delete an OvsBond object to the net config object.
 
-        :param bond: The OvsBond object to del.
+        :param bond: The OvsBond object to be deleted.
         """
         logger.info(f'Deleting bond: {bond.name}')
         self._del_common(bond)
@@ -1011,9 +1012,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(bond.name, bond.rules)
 
     def del_linux_bond(self, bond):
-        """Del a LinuxBond object to the net config object.
+        """Delete a LinuxBond object to the net config object.
 
-        :param bond: The LinuxBond object to del.
+        :param bond: The LinuxBond object to be deleted.
         """
         logger.info(f'Deleting linux bond: {bond.name}')
         self._del_common(bond)
@@ -1074,7 +1075,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
     def del_ib_interface(self, ib_interface):
         """Delete an InfiniBand interface object to the net config object.
 
-        :param ib_interface: The InfiniBand interface object to del
+        :param ib_interface: The InfiniBand interface object to be deleted
         """
         logger.info(f'Deleting ib_interface: {ib_interface.name}')
         self._del_common(ib_interface)
@@ -1099,7 +1100,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         """Delete an InfiniBand child interface object to the net config object.
 
         :param ib_child_interface: The InfiniBand child
-         interface object to delete.
+         interface object to be deleted.
         """
         logger.info(f'Deleting ib_child_interface: {ib_child_interface.name}')
         self._del_common(ib_child_interface)
@@ -1137,7 +1138,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
     def del_ovs_dpdk_port(self, ovs_dpdk_port):
         """Delete a OvsDpdkPort object to the net config object.
 
-        :param ovs_dpdk_port: The OvsDpdkPort object to delete.
+        :param ovs_dpdk_port: The OvsDpdkPort object to be deleted.
         """
         logger.info(f'Deleting ovs dpdk port: {ovs_dpdk_port.name}')
         self._del_common(ovs_dpdk_port)
@@ -1181,7 +1182,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
     def del_ovs_dpdk_bond(self, ovs_dpdk_bond):
         """Delete an OvsDPDKBond object to the net config object.
 
-        :param ovs_dpdk_bond: The OvsBond object to delete.
+        :param ovs_dpdk_bond: The OvsBond object to be deleted.
         """
         logger.info(f'Deleting ovs dpdk bond: {ovs_dpdk_bond.name}')
         self._del_common(ovs_dpdk_bond)
@@ -1203,7 +1204,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
     def del_sriov_pf(self, sriov_pf):
         """Delete a SriovPF object to the net config object
 
-        :param sriov_pf: The SriovPF object to delete
+        :param sriov_pf: The SriovPF object to be deleted
         """
         logger.info(f'Deleting sriov pf: {sriov_pf.name}')
         self.remove_sriov_pfs.append(sriov_pf.name)
@@ -1226,7 +1227,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
     def del_sriov_vf(self, sriov_vf):
         """Delete a SriovVF object to the net config object
 
-        :param sriov_vf: The SriovVF object to delete
+        :param sriov_vf: The SriovVF object to be deleted
         """
         logger.info(f'Deleting sriov vf: {sriov_vf.name} for pf: '
                     f'{sriov_vf.device}, vfid: {sriov_vf.vfid}')
@@ -1435,7 +1436,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             logger.info(f'Purging {iface}')
             self.purge(iface)
         if self.remove_sriov_pfs:
-            utils.reset_sriov_pf()
+            sriov_config.reset_sriov_pfs()
         for sriov_dev in self.remove_sriov_pfs:
             logger.info(f'Purging SR-IOV device {sriov_dev}')
             self.purge(sriov_dev)
@@ -2176,9 +2177,46 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             logger.info(f'Moving {rule_file} to {new_rule_file}')
             shutil.move(rule_file, new_rule_file)
 
+    def roll_back_migration(self):
+        self._restore_ifcfg_files()
+        self._bringup_all_devices()
+        msg = 'Migration failed. Reverted back to ifcfg provider succesfully'
+        raise os_net_config.ConfigurationError(msg)
+
     def clean_migration(self):
         logger.info("Clean migration files")
         sriov_config.wipe_sriov_udev_files()
+
+    def _restore_ifcfg_files(self):
+        for file in os.listdir(PURGE_IFCFG_FILES):
+            if file.startswith('ifcfg-') or \
+                file.startswith('rule-') or \
+                file.startswith('route-') or \
+                file.startswith('route6-'):
+                file_path = os.path.join(PURGE_IFCFG_FILES, file)
+                new_file_path = os.path.join(NETWORK_SCRIPTS_PATH, file)
+                try:
+                    shutil.copy(file_path, new_file_path)
+                except shutil.SameFileError:
+                    pass
+
+    def _bringup_all_devices(self):
+        utils.configure_sriov_pfs()
+        utils.configure_sriov_vfs()
+        for file in os.listdir(NETWORK_SCRIPTS_PATH):
+            device_name = ""
+            if file.startswith('ifcfg-'):
+                device_name = file[len('ifcfg-'):]
+            if file.startswith('rule-'):
+                device_name = file[len('rule-'):]
+            if file.startswith('route-'):
+                device_name = file[len('route-'):]
+            if file.startswith('route6-'):
+                device_name = file[len('route6-'):]
+
+            if device_name:
+                logger.info(f'Bringing up device {device_name}')
+                self.ifup(device_name)
 
     def purge(self, iface_name):
         ifcfg_file = ifcfg_config_path(iface_name)

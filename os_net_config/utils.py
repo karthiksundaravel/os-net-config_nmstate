@@ -404,7 +404,7 @@ def get_totalvfs(iface_name):
             logger.error(f'{iface_name}: Unable to read total_vfs: {exc}')
             return -1
     logger.info(f'{iface_name}: sriov_totalvfs can\'t be read.'
-                'SR-IOV is not enabled.')
+                'SR-IOV is not enabled in HW.')
     return -1
 
 

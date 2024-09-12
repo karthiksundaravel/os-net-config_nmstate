@@ -1482,10 +1482,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
 
-        # FIXME: Remove the below when nmstate supports
-        # disabling of ipv4/ipv6 for ovs interfaces
-        data[Interface.IPV4][InterfaceIPv4.ENABLED] = True
-        data[Interface.IPV6][InterfaceIPv6.ENABLED] = True
         if ovs_interface.hwaddr:
             data[Interface.MAC] = ovs_interface.hwaddr
         logger.debug(f'add ovs_interface data: {data}')
@@ -1857,4 +1853,5 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.linuxbond_data = {}
         self.vlan_data = {}
 
+        logger.info('Succesfully applied the network configuration with nmstate provider')
         return updated_interfaces

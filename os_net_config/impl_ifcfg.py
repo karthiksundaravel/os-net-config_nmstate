@@ -837,9 +837,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self.renamed_interfaces[interface.hwname] = interface.name
 
     def del_interface(self, interface):
-        """Del an Interface object to the net config object.
+        """Delete an Interface object to the net config object.
 
-        :param interface: The Interface object to del.
+        :param interface: The Interface object to be deleted.
         """
         logger.info(f'Deleting {interface}')
         self._del_common(interface)
@@ -859,9 +859,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(vlan.name, vlan.rules)
 
     def del_vlan(self, vlan):
-        """Del the Vlan object to the net config object.
+        """Delete the Vlan object to the net config object.
 
-        :param vlan: The vlan object to vlan.
+        :param vlan: The vlan object to be deleted.
         """
         logger.info(f'Deleting vlan {vlan}')
         self._del_common(vlan)
@@ -910,9 +910,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(bridge.name, bridge.rules)
 
     def del_bridge(self, bridge):
-        """Del an OvsBridge object to the net config object.
+        """Delete an OvsBridge object to the net config object.
 
-        :param bridge: The OvsBridge object to del
+        :param bridge: The OvsBridge object to be deleted
         """
         logger.info(f'Deleting bridge: {bridge.name}')
         self._del_common(bridge)
@@ -932,9 +932,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(bridge.name, bridge.rules)
 
     def del_ovs_user_bridge(self, bridge):
-        """Del an OvsUserBridge object to the net config object.
+        """Delete an OvsUserBridge object to the net config object.
 
-        :param bridge: The OvsUserBridge object to del.
+        :param bridge: The OvsUserBridge object to be deleted.
         """
         logger.info(f'Deleting ovs user bridge: {bridge.name}')
         self._del_common(bridge)
@@ -2178,16 +2178,17 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             shutil.move(rule_file, new_rule_file)
 
     def roll_back_migration(self):
+        logger.info('Rolling back to ifcfg provider')
         self._restore_ifcfg_files()
         self._bringup_all_devices()
-        msg = 'Migration failed. Reverted back to ifcfg provider succesfully'
-        raise os_net_config.ConfigurationError(msg)
+        logger.info('Reverted back to ifcfg provider succesfully')
 
     def clean_migration(self):
         logger.info("Clean migration files")
         sriov_config.wipe_sriov_udev_files()
 
     def _restore_ifcfg_files(self):
+        logger.info('Restoring the ifcfg files')
         for file in os.listdir(PURGE_IFCFG_FILES):
             if file.startswith('ifcfg-') or \
                 file.startswith('rule-') or \
@@ -2201,6 +2202,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                     pass
 
     def _bringup_all_devices(self):
+        logger.info('Bring up the devices with ifcfg provider')
         utils.configure_sriov_pfs()
         utils.configure_sriov_vfs()
         for file in os.listdir(NETWORK_SCRIPTS_PATH):

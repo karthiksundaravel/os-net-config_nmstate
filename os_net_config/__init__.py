@@ -249,9 +249,9 @@ class NetConfig(object):
         raise NotImplementedError("add_ovs_user_bridge is not implemented.")
 
     def del_ovs_user_bridge(self, bridge):
-        """Del an OvsUserBridge object to the net config object.
+        """Delete an OvsUserBridge object to the net config object.
 
-        :param bridge: The OvsUserBridge object to del.
+        :param bridge: The OvsUserBridge object to be deleted.
         """
         raise NotImplementedError("del_ovs_user_bridge is not implemented.")
 
@@ -270,9 +270,9 @@ class NetConfig(object):
         raise NotImplementedError("add_ivs_bridge is not implemented.")
 
     def del_ivs_bridge(self, bridge):
-        """Del a IvsBridge object to the net config object.
+        """Delete a IvsBridge object to the net config object.
 
-        :param bridge: The IvsBridge object to del.
+        :param bridge: The IvsBridge object to be deleted.
         """
         raise NotImplementedError("del_ivs_bridge is not implemented.")
 
@@ -284,9 +284,9 @@ class NetConfig(object):
         raise NotImplementedError("add_nfvswitch_bridge is not implemented.")
 
     def del_nfvswitch_bridge(self, bridge):
-        """Del a NfvswitchBridge object to the net config object.
+        """Delete a NfvswitchBridge object to the net config object.
 
-        :param bridge: The NfvswitchBridge object to del.
+        :param bridge: The NfvswitchBridge object to be deleted.
         """
         raise NotImplementedError("del_nfvswitch_bridge is not implemented.")
 
@@ -298,9 +298,9 @@ class NetConfig(object):
         raise NotImplementedError("add_bond is not implemented.")
 
     def del_bond(self, bond):
-        """Del an OvsBond object to the net config object.
+        """Delete an OvsBond object to the net config object.
 
-        :param bond: The OvsBond object to del.
+        :param bond: The OvsBond object to deleted.
         """
         raise NotImplementedError("del_bond is not implemented.")
 
@@ -333,9 +333,9 @@ class NetConfig(object):
         raise NotImplementedError("add_ovs_patch_port is not implemented.")
 
     def del_ovs_patch_port(self, ovs_patch_port):
-        """Del a OvsPatchPort object to the net config object.
+        """Delete a OvsPatchPort object to the net config object.
 
-        :param ovs_patch_port: The OvsPatchPort object to del.
+        :param ovs_patch_port: The OvsPatchPort object to be deleted.
         """
         raise NotImplementedError("del_ovs_patch_port is not implemented.")
 
@@ -347,9 +347,9 @@ class NetConfig(object):
         raise NotImplementedError("add_ib_interface is not implemented.")
 
     def del_ib_interface(self, ib_interface):
-        """Del an InfiniBand Interface object to the net config object.
+        """Delete an InfiniBand Interface object to the net config object.
 
-        :param interface: The InfiniBand Interface object to del.
+        :param interface: The InfiniBand Interface object to be deleted.
         """
         raise NotImplementedError("del_ib_interface is not implemented.")
 
@@ -369,9 +369,9 @@ class NetConfig(object):
         raise NotImplementedError("add_ovs_dpdk_port is not implemented.")
 
     def del_ovs_dpdk_port(self, ovs_dpdk_port):
-        """Del a OvsDpdkPort object to the net config object.
+        """Delete a OvsDpdkPort object to the net config object.
 
-        :param ovs_dpdk_port: The OvsDpdkPort object to del.
+        :param ovs_dpdk_port: The OvsDpdkPort object to be deleted.
         """
         raise NotImplementedError("del_ovs_dpdk_port is not implemented.")
 
@@ -383,9 +383,9 @@ class NetConfig(object):
         raise NotImplementedError("add_ovs_dpdk_bond is not implemented.")
 
     def del_ovs_dpdk_bond(self, ovs_dpdk_bond):
-        """Del a OvsDpdkBond object to the net config object.
+        """Delete a OvsDpdkBond object to the net config object.
 
-        :param ovs_dpdk_bond: The OvsDpdkBond object to del.
+        :param ovs_dpdk_bond: The OvsDpdkBond object to be deleted.
         """
         raise NotImplementedError("del_ovs_dpdk_bond is not implemented.")
 
@@ -397,9 +397,9 @@ class NetConfig(object):
         raise NotImplementedError("add_sriov_pf is not implemented.")
 
     def del_sriov_pf(self, sriov_pf):
-        """Del a SriovPF object to the net config object.
+        """Delete a SriovPF object to the net config object.
 
-        :param sriov_pf: The SriovPF object to del.
+        :param sriov_pf: The SriovPF object to be deleted.
         """
         raise NotImplementedError("del_sriov_pf is not implemented.")
 
@@ -411,9 +411,9 @@ class NetConfig(object):
         raise NotImplementedError("add_sriov_vf is not implemented.")
 
     def del_sriov_vf(self, sriov_vf):
-        """Del a SriovVF object to the net config object.
+        """Delete a SriovVF object to the net config object.
 
-        :param sriov_vf: The SriovVF object to del.
+        :param sriov_vf: The SriovVF object to be deleted.
         """
         raise NotImplementedError("del_sriov_vf is not implemented.")
 

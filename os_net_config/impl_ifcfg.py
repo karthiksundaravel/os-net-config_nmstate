@@ -1435,8 +1435,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         for iface in self.remove_iface:
             logger.info(f'Purging {iface}')
             self.purge(iface)
-        if self.remove_sriov_pfs:
-            sriov_config.reset_sriov_pfs()
+        #if self.remove_sriov_pfs:
+        #    sriov_config.reset_sriov_pfs()
         for sriov_dev in self.remove_sriov_pfs:
             logger.info(f'Purging SR-IOV device {sriov_dev}')
             self.purge(sriov_dev)
@@ -2203,7 +2203,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
     def _bringup_all_devices(self):
         logger.info('Bring up the devices with ifcfg provider')
-        utils.configure_sriov_pfs()
+        #utils.configure_sriov_pfs()
         utils.configure_sriov_vfs()
         for file in os.listdir(NETWORK_SCRIPTS_PATH):
             device_name = ""

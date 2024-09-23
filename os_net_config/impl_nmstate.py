@@ -100,32 +100,59 @@ def is_dict_subset(superset, subset):
         return True
     if superset and subset:
         for key, value in subset.items():
+            logger.info(f'Key is {key}')
             if key not in superset:
-                return False
+                if value:
+                    logger.info('Fail 1')
+                    return False
+                else:
+                    continue
             if isinstance(value, dict):
                 if not is_dict_subset(superset[key], value):
+                    logger.info('Fail 2')
                     return False
             elif isinstance(value, int):
                 if value != superset[key]:
+                    logger.info('Fail 3')
                     return False
             elif isinstance(value, str):
                 if value != superset[key]:
+                    logger.info('Fail 4')
                     return False
             elif isinstance(value, list):
                 try:
                     if not set(value) <= set(superset[key]):
+                        logger.info('Fail 5')
                         return False
                 except TypeError:
                     for item in value:
                         if item not in superset[key]:
+                            if isinstance(item, dict):
+                                logger.info(f'parsing {item} super {superset[key]}')
+                                for s_items in superset[key]:
+                                    if is_dict_subset(s_items, item):
+                                        break
+                                else:
+                                    logger.info('Fail 6')
+                                    return False
+                            else:
+                                logger.info('Fail 7')
+                                return False 
+                    for item in value:
+                        if item not in superset[key]:
+                            logger.info('Fail 8')
                             return False
             elif isinstance(value, set):
                 if not value <= superset[key]:
+                    logger.info('Fail 9')
                     return False
             else:
                 if not value == superset[key]:
+                    logger.info('Fail 10')
                     return False
+        logger.info('True - All pass')
         return True
+    logger.info('Fail 11')
     return False
 
 
@@ -222,6 +249,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
     def __init__(self, noop=False, root_dir=''):
         super(NmstateNetConfig, self).__init__(noop, root_dir)
         self.interface_data = {}
+        self.dpdk_data = {}
         self.vlan_data = {}
         self.route_data = {}
         self.rules_data = []
@@ -322,6 +350,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for pf in self.sriov_vf_data.keys():
             required_vfs = []
+            pf_state = {}
             if pf in self.sriov_pf_data:
                 pf_state = self.sriov_pf_data[pf]
 
@@ -333,11 +362,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 if vf:
                     required_vfs.append(vf)
 
-            pf_state[
-                Ethernet.CONFIG_SUBTREE][
-                Ethernet.SRIOV_SUBTREE][
-                Ethernet.SRIOV.VFS_SUBTREE] = required_vfs
-            iface_schema.append(pf_state)
+            if required_vfs and pf_state:
+                pf_state[
+                    Ethernet.CONFIG_SUBTREE][
+                    Ethernet.SRIOV_SUBTREE][
+                    Ethernet.SRIOV.VFS_SUBTREE] = required_vfs
+                cur_state = self.iface_state(pf_state['name'])
+                if not is_dict_subset(cur_state, pf_state):
+                    iface_schema.append(pf_state)
+                else:
+                    logger.info(f'No changes required for {pf_state["name"]}')
+
         return iface_schema
 
     def get_route_tables(self):
@@ -417,6 +452,29 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 data += f"{id}\t{route_tables[id]}     "\
                         f"{_OS_NET_CONFIG_MANAGED}\n"
         return data
+
+    def set_iface_config(self, req_cfg):
+        cur_state = netinfo.show_running_config()
+        self.__dump_key_config(cur_state, "Present state")
+        req_state = cur_state.copy()
+        affected_devices = []
+        for req_iface in req_cfg:
+            idx = 0
+            for iface in req_state[Interface.KEY]:
+                if iface['name'] == req_iface['name']:
+                    req_state[Interface.KEY][idx] = req_iface
+                    affected_devices.append(iface['name']) 
+                    break;
+                idx +=1
+
+        self.__dump_key_config(req_state, "Desired state")
+
+        diff_state = gen_diff.generate_differences(req_state,
+                                                   cur_state)
+        msg = f"Setting the difference for {affected_devices}"
+        self.__dump_key_config(diff_state, msg=msg)
+        netapplier.apply(diff_state, verify_change=True)
+
 
     def iface_state(self, name=''):
         """Return the current interface state according to nmstate.
@@ -789,11 +847,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
             data[Interface.IPV4][InterfaceIPv4.DHCP] = True
             data[Interface.IPV4][InterfaceIPv4.AUTO_DNS] = True
             data[Interface.IPV4][InterfaceIPv4.AUTO_ROUTES] = True
-            data[Interface.IPV4][InterfaceIPv4.AUTO_GATEWAY] = True
+            if base_opt.defroute:
+                data[Interface.IPV4][InterfaceIPv4.AUTO_GATEWAY] = True
         else:
             data[Interface.IPV4][InterfaceIPv4.DHCP] = False
             if base_opt.dns_servers:
                 data[Interface.IPV4][InterfaceIPv4.AUTO_DNS] = False
+            pass
 
         if base_opt.use_dhcpv6:
             data[Interface.IPV6][InterfaceIPv6.ENABLED] = True
@@ -802,12 +862,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
             data[Interface.IPV6][InterfaceIPv6.AUTOCONF] = True
             data[Interface.IPV6][InterfaceIPv6.AUTO_DNS] = True
             data[Interface.IPV6][InterfaceIPv6.AUTO_ROUTES] = True
-            data[Interface.IPV6][InterfaceIPv6.AUTO_GATEWAY] = True
+            if base_opt.defroute:
+                data[Interface.IPV6][InterfaceIPv6.AUTO_GATEWAY] = True
         else:
             data[Interface.IPV6][InterfaceIPv6.DHCP] = False
             data[Interface.IPV6][InterfaceIPv6.AUTOCONF] = False
             if base_opt.dns_servers:
                 data[Interface.IPV6][InterfaceIPv6.AUTO_DNS] = False
+            pass
 
         if not base_opt.defroute:
             data[Interface.IPV4][InterfaceIPv4.AUTO_GATEWAY] = False
@@ -1509,14 +1571,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # checks are added at the object creation stage.
         ifname = ovs_dpdk_port.members[0].name
 
-        # Bind the dpdk interface
-        utils.bind_dpdk_interfaces(ifname, ovs_dpdk_port.driver, self.noop)
         data = self._add_common(ovs_dpdk_port)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
 
         pci_address = utils.get_dpdk_devargs(ifname, noop=False)
-
+        self.dpdk_data[ovs_dpdk_port.name] = {'ifname': ifname,
+                                              'driver': ovs_dpdk_port.driver,
+                                              'pci_address': pci_address}
         data[OVSInterface.DPDK_CONFIG_SUBTREE
              ] = {OVSInterface.Dpdk.DEVARGS: pci_address}
         if ovs_dpdk_port.rx_queue:
@@ -1639,6 +1701,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
                    f'({max_vfs}) is lesser than user requested '
                    f'numvfs ({sriov_pf.numvfs})')
             raise os_net_config.ConfigurationError(msg)
+        
+
 
         if sriov_pf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
@@ -1767,11 +1831,31 @@ class NmstateNetConfig(os_net_config.NetConfig):
         apply_data = {}
         if vf_config and activate:
             if not self.noop:
-                logger.debug("Applying the VF parameters")
+                logger.debug(f"Applying the VF parameters {vf_config}")
+
                 self.nmstate_apply(self.set_ifaces(vf_config), verify=True)
+                #self.set_iface_config(vf_config)
+
+        for dpdk_name in self.dpdk_data.keys():
+            logger.info(f'Binding the drivers for DPDK interface {dpdk_name}')
+            utils.bind_dpdk_interfaces(self.dpdk_data[dpdk_name]['ifname'],
+                                       self.dpdk_data[dpdk_name]['driver'],
+                                       self.noop)
 
         for interface_name, iface_data in self.interface_data.items():
             iface_state = self.iface_state(interface_name)
+
+
+            #self.set_iface_config(interface_name, iface_data)
+            #import time
+
+            #time.sleep(5)
+
+            #diff_state = gen_diff.generate_differences(self.set_ifaces(iface_state),
+            #                                           self.set_ifaces(iface_data))
+            #msg = "Difference in {interface_name}"
+            #self.__dump_key_config(diff_state, msg)
+
             if not is_dict_subset(iface_state, iface_data):
                 updated_interfaces[interface_name] = iface_data
             else:
@@ -1817,6 +1901,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             del_routes.extend(del_route)
 
         if updated_interfaces:
+            #self.set_iface_config(list(updated_interfaces.values()))
             apply_data = self.set_ifaces(list(updated_interfaces.values()))
             if activate and not self.noop:
                 self.nmstate_apply(apply_data, verify=True)
@@ -1852,13 +1937,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 logger.error(message)
                 for e in self.errors:
                     logger.error(str(e))
-                self.rollback_to_initial_settings()
+                #self.rollback_to_initial_settings()
                 raise os_net_config.ConfigurationError(message)
 
         self.interface_data = {}
         self.bridge_data = {}
         self.linuxbond_data = {}
         self.vlan_data = {}
+        self.dpdk_data = {}
 
         logger.info('Succesfully applied the network configuration with '
                     'nmstate provider')

@@ -37,6 +37,7 @@ from libnmstate.schema import RouteRule as NMRouteRule
 from libnmstate.schema import VLAN
 import logging
 import netaddr
+from oslo_concurrency import processutils
 import re
 import yaml
 
@@ -95,13 +96,15 @@ def get_route_options(route_options, key):
 
 def is_dict_subset(superset, subset):
     """Check to see if one dict is a subset of another dict."""
-
     if superset == subset:
         return True
     if superset and subset:
         for key, value in subset.items():
             if key not in superset:
-                return False
+                if value:
+                    return False
+                else:
+                    continue
             if isinstance(value, dict):
                 if not is_dict_subset(superset[key], value):
                     return False
@@ -118,7 +121,14 @@ def is_dict_subset(superset, subset):
                 except TypeError:
                     for item in value:
                         if item not in superset[key]:
-                            return False
+                            if isinstance(item, dict):
+                                for s_items in superset[key]:
+                                    if is_dict_subset(s_items, item):
+                                        break
+                                else:
+                                    return False
+                            else:
+                                return False
             elif isinstance(value, set):
                 if not value <= superset[key]:
                     return False
@@ -226,6 +236,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
     def __init__(self, noop=False, root_dir=''):
         super(NmstateNetConfig, self).__init__(noop, root_dir)
         self.interface_data = {}
+        self.dpdk_data = {}
         self.vlan_data = {}
         self.route_data = {}
         self.rules_data = []
@@ -240,6 +251,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.sriov_pf_data = {}
         self.sriov_vf_data = {}
         self.migration_enabled = False
+        self.apply_pf = False
+        self.apply_vf = False
         self.initial_state = netinfo.show_running_config()
         self.__dump_key_config(self.initial_state,
                                msg="Initial network settings")
@@ -321,11 +334,31 @@ class NmstateNetConfig(os_net_config.NetConfig):
                    f'while the VF {sriov_vf.vfid} is used')
             raise objects.InvalidConfigException(msg)
 
-    def prepare_sriov_vf_config(self):
-        iface_schema = []
+    def apply_pf_config(self, activate):
+        pf_config = []
+        for pf_name in self.sriov_pf_data.keys():
+            desired_pf_state = self.sriov_pf_data[pf_name]
+            cur_state = self.iface_state(pf_name)
+            if not is_dict_subset(cur_state, desired_pf_state):
+                if not self.noop and activate:
+                    logger.debug(f'{pf_name}: Applying the PF config')
+                    self.nmstate_apply(self.set_ifaces([desired_pf_state]),
+                                       verify=True)
+                pf_config.append(desired_pf_state)
+                path = common.get_dev_path(pf_name)
+                udev_cmd = ["/usr/bin/udevadm", "wait", "-t", "60", path]
+                processutils.execute(*udev_cmd)
+            else:
+                logger.info(f'{pf_name}: No changes required for PF')
+        self.apply_pf = False
+        return pf_config
 
+    def apply_vf_config(self, activate):
+        vf_config = []
         for pf in self.sriov_vf_data.keys():
             required_vfs = []
+            pf_state = {}
+
             if pf in self.sriov_pf_data:
                 pf_state = self.sriov_pf_data[pf]
 
@@ -337,12 +370,36 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 if vf:
                     required_vfs.append(vf)
 
-            pf_state[
-                Ethernet.CONFIG_SUBTREE][
-                Ethernet.SRIOV_SUBTREE][
-                Ethernet.SRIOV.VFS_SUBTREE] = required_vfs
-            iface_schema.append(pf_state)
-        return iface_schema
+            if required_vfs and pf_state:
+                pf_state[
+                    Ethernet.CONFIG_SUBTREE][
+                    Ethernet.SRIOV_SUBTREE][
+                    Ethernet.SRIOV.VFS_SUBTREE] = required_vfs
+                cur_state = self.iface_state(pf_state['name'])
+                try:
+                    present_vf_state = cur_state[
+                        Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE]
+                    desire_vf_state = pf_state[
+                        Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE]
+                except KeyError:
+                    present_vf_state = cur_state
+                    desire_vf_state = pf_state
+                if not is_dict_subset(present_vf_state, desire_vf_state):
+                    if not self.noop and activate:
+                        logger.debug(f'{pf_state["name"]}: '
+                                     'Applying the VF parameters')
+                        self.nmstate_apply(self.set_ifaces([pf_state]),
+                                           verify=True)
+                        path = common.get_dev_path(pf_state['name'])
+                        udev_cmd = ["/usr/bin/udevadm", "wait", "-t",
+                                    "60", path]
+                        processutils.execute(*udev_cmd)
+                    vf_config.append(pf_state)
+                else:
+                    logger.info(f'{pf_state["name"]}: '
+                                'No changes required for VFs')
+        self.apply_vf = False
+        return vf_config
 
     def get_route_tables(self):
         """Generate configuration content for routing tables.
@@ -543,6 +600,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param new_state: desired network config json
         :param verify: boolean that determines if config will be verified
         """
+        verify = False 
+
         self.__dump_key_config(new_state,
                                msg=f'Applying the config with nmstate')
         if not self.noop:
@@ -1337,7 +1396,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(bridge.name, OVSBridge.TYPE)
 
-        ovs_port_name = f"{bridge.name}-p"
+        ovs_port_name = f"{bridge.name}"
         if bridge.primary_interface_name:
             mac = self.interface_mac(bridge.primary_interface_name)
         else:
@@ -1560,13 +1619,22 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # checks are added at the object creation stage.
         ifname = ovs_dpdk_port.members[0].name
 
-        # Bind the dpdk interface
-        utils.bind_dpdk_interfaces(ifname, ovs_dpdk_port.driver, self.noop)
         data = self._add_common(ovs_dpdk_port)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
 
-        pci_address = utils.get_dpdk_devargs(ifname, noop=False)
+        pci_address = utils.get_pci_address(ifname, noop=False)
+        mac_address = common.interface_mac(ifname)
+        if pci_address:
+            utils._update_dpdk_map(ifname, pci_address,
+                                   mac_address=mac_address,
+                                   driver= ovs_dpdk_port.driver)
+        else:
+            pci_address = utils.get_stored_pci_address(ifname,
+                                                       noop=False)
+        if not pci_address:
+            msg = 'PCI address not found for {ifname}'
+            raise common.OvsDpdkBindException(msg)
 
         data[OVSInterface.DPDK_CONFIG_SUBTREE
              ] = {OVSInterface.Dpdk.DEVARGS: pci_address}
@@ -1585,6 +1653,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
             logger.info(f"Parsing ovs_extra : {ovs_dpdk_port.ovs_extra}")
             self.parse_ovs_extra(ovs_dpdk_port.ovs_extra,
                                  ovs_dpdk_port.name, data)
+        udev_cmd = ""
+        if ovs_dpdk_port.pf_name:
+            path = common.get_dev_path(ovs_dpdk_port.pf_name)
+            #udev_cmd = f'/usr/bin/udevadm wait -t 60 {path}'
+        bind_cmd = (f'driverctl --nosave set-override {pci_address} '
+                    f'{ovs_dpdk_port.driver}')
+        unbind_cmd = f'driverctl unset-override {pci_address}'
+        data['dispatch'] = {'post-activation': bind_cmd,
+                            'post-deactivation': unbind_cmd}
 
         logger.debug(f'ovs dpdk port data: {data}')
         self.interface_data[ovs_dpdk_port.name] = data
@@ -1712,8 +1789,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         logger.debug('sriov pf data: %s' % data)
         self.sriov_vf_data[sriov_pf.name] = [None] * sriov_pf.numvfs
-        self.interface_data[sriov_pf.name] = data
         self.sriov_pf_data[sriov_pf.name] = data
+        self.apply_pf = True
 
     def add_sriov_vf(self, sriov_vf):
         """Add a SriovVF object to the net config object
@@ -1746,6 +1823,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if sriov_vf.ethtool_opts:
             self.add_ethtool_config(sriov_vf.name, data,
                                     sriov_vf.ethtool_opts)
+        self.apply_vf = True
 
     def add_ib_interface(self, ib_interface):
         """Add an InfiniBand interface object to the net config object.
@@ -1820,15 +1898,22 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         updated_interfaces = {}
         logger.debug("----------------------------")
-        vf_config = self.prepare_sriov_vf_config()
+        if self.apply_pf:
+            self.apply_pf_config(activate)
+
+        if self.apply_vf:
+            self.apply_vf_config(activate)
+
         apply_data = {}
-        if vf_config and activate:
-            if not self.noop:
-                logger.debug("Applying the VF parameters")
-                self.nmstate_apply(self.set_ifaces(vf_config), verify=True)
+        #for dpdk_name in self.dpdk_data.keys():
+        #    logger.info(f'Binding the drivers for DPDK interface {dpdk_name}')
+        #    utils.bind_dpdk_interfaces(self.dpdk_data[dpdk_name]['ifname'],
+        #                               self.dpdk_data[dpdk_name]['driver'],
+        #                               self.noop)
 
         for interface_name, iface_data in self.interface_data.items():
             iface_state = self.iface_state(interface_name)
+
             if not is_dict_subset(iface_state, iface_data):
                 updated_interfaces[interface_name] = iface_data
             else:

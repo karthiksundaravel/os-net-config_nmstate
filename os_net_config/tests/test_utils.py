@@ -803,6 +803,7 @@ class TestUtils(base.TestCase):
         self.stub_out('oslo_concurrency.processutils.execute', test_execute)
         self.stub_out('os_net_config.utils.get_stored_pci_address',
                       test_get_stored_pci_address)
+
         tmpdir = tempfile.mkdtemp()
         self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
         nic = 'p4p1'
@@ -837,6 +838,16 @@ class TestUtils(base.TestCase):
                          'class=eth,mac=00:0f:21:69:39:14')
         with open(os.path.join(nic_path, 'device', 'vendor'), 'w') as f:
             f.write('0x15b4')
+        self.assertEqual(utils.get_dpdk_devargs(nic, False),
+                         '0000:00:19.0')
+        with open(os.path.join(nic_path, 'device', 'vendor'), 'w') as f:
+            f.write('0x15b4')
+
+        def test_get_pci_address(ifname, noop):
+            return
+        self.stub_out('os_net_config.utils.get_pci_address',
+                      test_get_pci_address)
+
         self.assertEqual(utils.get_dpdk_devargs(nic, False),
                          '0000:00:07.0')
         shutil.rmtree(tmpdir)

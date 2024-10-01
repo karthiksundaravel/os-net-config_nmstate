@@ -1405,7 +1405,7 @@ class OvsDpdkPort(_BaseOpts):
                  dhclient_args=None, dns_servers=None, nm_controlled=False,
                  onboot=True, domain=None, members=None, driver='vfio-pci',
                  ovs_options=None, ovs_extra=None, rx_queue=None,
-                 rx_queue_size=None, tx_queue_size=None):
+                 rx_queue_size=None, tx_queue_size=None, pf_name=None):
 
         check_ovs_installed(self.__class__.__name__)
 
@@ -1422,6 +1422,7 @@ class OvsDpdkPort(_BaseOpts):
         self.rx_queue = rx_queue
         self.rx_queue_size = rx_queue_size
         self.tx_queue_size = tx_queue_size
+        self.pf_name = pf_name
 
     @staticmethod
     def update_vf_config(iface, driver=None):
@@ -1457,6 +1458,7 @@ class OvsDpdkPort(_BaseOpts):
          onboot, domain) = _BaseOpts.base_opts_from_json(json)
 
         driver = json.get('driver')
+        pf_name = None
         if not driver:
             driver = 'vfio-pci'
 
@@ -1479,6 +1481,7 @@ class OvsDpdkPort(_BaseOpts):
                     elif isinstance(iface, SriovVF):
                         OvsDpdkPort.update_vf_config(iface, driver)
                         members.append(iface)
+                        pf_name = iface.device
                     else:
                         msg = 'Unsupported OVS DPDK Port member type'
                         raise InvalidConfigException(msg)
@@ -1511,7 +1514,8 @@ class OvsDpdkPort(_BaseOpts):
                            ovs_options=ovs_options,
                            ovs_extra=ovs_extra, rx_queue=rx_queue,
                            rx_queue_size=rx_queue_size,
-                           tx_queue_size=tx_queue_size)
+                           tx_queue_size=tx_queue_size,
+                           pf_name=pf_name)
 
 
 class SriovVF(_BaseOpts):

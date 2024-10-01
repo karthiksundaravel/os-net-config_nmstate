@@ -81,6 +81,10 @@ class SriovVfNotFoundException(ValueError):
     pass
 
 
+class DpdkDevargsNotFoundException(ValueError):
+    pass
+
+
 def write_config(filename, data):
     with open(filename, 'w') as f:
         f.write(str(data))
@@ -361,8 +365,13 @@ def get_dpdk_devargs(ifname, noop):
                 # so we need to get their pci address with ethtool.
                 dpdk_devargs = get_pci_address(ifname, noop)
         else:
-            logger.info("Getting stored PCI address as devarg")
-            dpdk_devargs = get_stored_pci_address(ifname, noop)
+            dpdk_devargs = get_pci_address(ifname, noop)
+            if not dpdk_devargs:
+                logger.info("Getting stored PCI address as devarg")
+                dpdk_devargs = get_stored_pci_address(ifname, noop)
+        if not dpdk_devargs:
+            msg = f'DPDK devargs not found for {ifname}'
+            raise DpdkDevargsNotFoundException(msg)
         logger.debug("Devargs found: %s" % (dpdk_devargs))
         return dpdk_devargs
 

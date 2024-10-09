@@ -1426,6 +1426,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         % (id, route_tables[id])
         return data
 
+
+
     def destroy(self):
         """Destroy the network configuration.
 
@@ -1435,6 +1437,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         for iface in self.remove_iface:
             logger.info(f'Purging {iface}')
             self.purge(iface)
+        
+        utils.unbind_all_dpdk_ifaces(self.noop)
         if self.remove_sriov_pfs:
             sriov_config.reset_sriov_pfs()
         for sriov_dev in self.remove_sriov_pfs:
@@ -2205,6 +2209,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         logger.info('Bring up the devices with ifcfg provider')
         utils.configure_sriov_pfs()
         utils.configure_sriov_vfs()
+        utils.bind_all_dpdk_ifaces()
         for file in os.listdir(NETWORK_SCRIPTS_PATH):
             device_name = ""
             if file.startswith('ifcfg-'):

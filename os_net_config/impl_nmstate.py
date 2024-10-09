@@ -1389,7 +1389,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(bridge.name, OVSBridge.TYPE)
 
-        ovs_port_name = f"{bridge.name}-p"
+        ovs_port_name = f"{bridge.name}"
         if bridge.primary_interface_name:
             mac = self.interface_mac(bridge.primary_interface_name)
         else:

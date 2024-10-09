@@ -218,6 +218,29 @@ def diff(filename, data):
     return not file_data == data
 
 
+def unbind_all_dpdk_ifaces(noop):
+    dpdk_map = common.get_dpdk_map()
+    for dpdk_nic in dpdk_map:
+        return unbind_dpdk(dpdk_nic['pci_address'], noop)
+
+
+def bind_all_dpdk_ifaces(noop):
+    dpdk_map = common.get_dpdk_map()
+    for dpdk_nic in dpdk_map:
+        return bind_dpdk(dpdk_nic['pci_address'],
+                         dpdk_nic['driver'], noop)
+
+
+def unbind_dpdk(pci_address, noop):
+    err = common.unset_driverctl_override(pci_address, noop)
+    return err
+
+
+def bind_dpdk(pci_address, driver, noop):
+    err = common.set_driverctl_override(pci_address, driver, noop)
+    return err
+
+
 def bind_dpdk_interfaces(ifname, driver, noop):
     if common.is_mellanox_interface(ifname) and 'vfio-pci' in driver:
         msg = ("For Mellanox NIC %s, the default driver vfio-pci "

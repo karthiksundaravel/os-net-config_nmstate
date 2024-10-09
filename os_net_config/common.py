@@ -326,6 +326,27 @@ def is_vf_by_name(interface_name, check_mapping_file=False):
     return is_sriov_vf
 
 
+def unset_driverctl_override(pci_address, noop=False):
+    out, err = processutils.execute('driverctl', 'list-overrides')
+    if err:
+        logger.info('{pci_address}: No override exists')
+        return
+
+    if pci_address in out:
+        detach_cmd = ['ovs-appctl', 'netdev-dpdk/detach', pci_address]
+        out, err = processutils.execute(*detach_cmd)
+        if err:
+            msg = (f'{pci_address}: Failed to netdev-dpdk/detach '
+                   f'dpdk interface with err - {err}')
+            raise OvsDpdkBindException(msg)
+        unset_cmd = ['driverctl', 'unset-override', pci_address]
+        out, err = processutils.execute(*unset_cmd)
+        if err:
+            msg = (f'{pci_address}: Failed to unbind dpdk interface '
+                   f'with err - {err}')
+            raise OvsDpdkBindException(msg)
+
+
 def set_driverctl_override(pci_address, driver):
     if driver is None:
         logger.info(f"Driver override is not required for device"
@@ -338,12 +359,13 @@ def set_driverctl_override(pci_address, driver):
         return False
     try:
         if is_vf(pci_address):
-            out, err = processutils.execute('driverctl', '--nosave',
+            out, err = processutils.execute('driverctl',
+                                            '--nosave', 'set-override',
+                                            pci_address, driver)
+        else:
+            out, err = processutils.execute('driverctl',
                                             'set-override', pci_address,
                                             driver)
-        else:
-            out, err = processutils.execute('driverctl', 'set-override',
-                                            pci_address, driver)
         if err:
             msg = f"Failed to bind dpdk interface {pci_address} err - {err}"
             raise OvsDpdkBindException(msg)

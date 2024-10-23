@@ -732,16 +732,16 @@ class OvsBridge(_BaseOpts):
     @staticmethod
     def update_vf_config(iface):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f'{iface.device}-{iface.vfid}: Trust is not set '
+                        'defaulting to on for OvsBridge')
             iface.trust = "on"
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(f'{iface.device}-{iface.vfid}: Spoofcheck is not set ,'
+                        'to off OvsBridge')
             iface.spoofcheck = "off"
         if iface.promisc is None:
-            logger.info("Promisc is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f'{iface.device}-{iface.vfid}: Promisc is not set, '
+                        'defaulting to on for OvsBridge')
             iface.promisc = "on"
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
@@ -1113,16 +1113,16 @@ class LinuxBond(_BaseOpts):
     @staticmethod
     def update_vf_config(iface):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f'{iface.device}-{iface.vfid}: Trust is not set, '
+                        'defaulting to on for LinuxBond')
             iface.trust = 'on'
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(f'{iface.device}-{iface.vfid}: Spoofcheck is not set, '
+                        'defaulting to off for LinuxBond')
             iface.spoofcheck = 'off'
         if iface.promisc is None:
-            logger.info("Promisc is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(f'{iface.device}-{iface.vfid}: Promisc is not set. '
+                        'defaulting to off for LinuxBond')
             iface.promisc = 'off'
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
@@ -1201,16 +1201,16 @@ class OvsBond(_BaseOpts):
     @staticmethod
     def update_vf_config(iface):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f'{iface.device}-{iface.vfid}: Trust is not set, '
+                        'defaulting to on for OvsBond')
             iface.trust = "on"
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(f'{iface.device}-{iface.vfid}: Spoofcheck is not set, '
+                        'defaulting to off for OvsBond')
             iface.spoofcheck = "off"
         if iface.promisc is None:
-            logger.info("Promisc is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f'{iface.device}-{iface.vfid}: Promisc is not set, '
+                        'defaulting to on')
             iface.promisc = "on"
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
@@ -1429,17 +1429,20 @@ class OvsDpdkPort(_BaseOpts):
     @staticmethod
     def update_vf_config(iface, driver=None):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f'{iface.device}-{iface.vfid}: Trust is not set, '
+                        'defaulting to on for OvsDpdkPort')
             iface.trust = "on"
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(f'{iface.device}-{iface.vfid}: Spoofcheck is not set, '
+                        'defaulting to off for OvsDpdkPort')
             iface.spoofcheck = "off"
         if iface.promisc is not None:
-            logger.warning("Promisc can't be changed for ovs_dpdk_port")
+            logger.warning(f'{iface.device}-{iface.vfid}: Promisc can\'t be '
+                           f'changed for OvsDpdkPort')
             iface.promisc = None
-        logger.info("Overriding the default driver for DPDK")
+        logger.info(f'{iface.device}-{iface.vfid}: Overriding the default '
+                    f'driver for DPDK with {driver}')
+        iface.driver = driver
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
                                   spoofcheck=iface.spoofcheck,

@@ -292,8 +292,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param sriov_vf: The SriovVF object to add
         """
-        logger.info(f'VF Config for vfid {sriov_vf.vfid} '
-                    f'device {sriov_vf.device} Trust={sriov_vf.trust} '
+        logger.info(f'{sriov_vf.device}-{sriov_vf.vfid}: Get schema for'
+                    f'Trust={sriov_vf.trust} '
                     f'vlan={sriov_vf.vlan_id} Qos={sriov_vf.qos}'
                     f'Max Rate= {sriov_vf.max_tx_rate} '
                     f'Min Rate={sriov_vf.min_tx_rate}'
@@ -324,17 +324,18 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
     def update_vf_config(self, sriov_vf):
         if sriov_vf.device in self.sriov_vf_data:
-            logger.info(f'Updating the VF data for VF: {sriov_vf.vfid} '
-                        f'Device: {sriov_vf.device} Trust: {sriov_vf.trust} '
+            logger.info(f'{sriov_vf.device}-{sriov_vf.vfid}: Updating the VF '
+                        f'Trust: {sriov_vf.trust} '
                         f'Spoofcheck: {sriov_vf.spoofcheck} '
                         f'Vlan: {sriov_vf.vlan_id} Qos: {sriov_vf.qos} '
                         f'Min Rate: {sriov_vf.min_tx_rate} '
                         f'Max Rate: {sriov_vf.max_tx_rate}')
             vf_config = self.get_vf_config(sriov_vf)
             self.sriov_vf_data[sriov_vf.device][sriov_vf.vfid] = vf_config
+            self.add_vf_driver_override(sriov_vf)
         else:
-            msg = (f'SR-IOV PF is not configured on {sriov_vf.device}, '
-                   f'while the VF {sriov_vf.vfid} is used')
+            msg = (f'{sriov_vf.device}-{sriov_vf.vfid} PF is not configured, '
+                   f'while the VF is used')
             raise objects.InvalidConfigException(msg)
 
     def apply_pf_config(self, activate):
@@ -377,14 +378,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     Ethernet.SRIOV_SUBTREE][
                     Ethernet.SRIOV.VFS_SUBTREE] = required_vfs
                 cur_state = self.iface_state(pf_state['name'])
-                try:
-                    present_vf_state = cur_state[
-                        Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE]
-                    desire_vf_state = pf_state[
-                        Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE]
-                except KeyError:
-                    present_vf_state = cur_state
-                    desire_vf_state = pf_state
+                #try:
+                #    present_vf_state = cur_state[
+                #        Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE]
+                #    desire_vf_state = pf_state[
+                #        Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE]
+                #except KeyError:
+                present_vf_state = cur_state
+                desire_vf_state = pf_state
                 if not is_dict_subset(present_vf_state, desire_vf_state):
                     if not self.noop and activate:
                         logger.debug(f'{pf_state["name"]}: '
@@ -1774,20 +1775,22 @@ class NmstateNetConfig(os_net_config.NetConfig):
             device_data[DISPATCH] = {}
         if cmd_stage not in device_data[DISPATCH]:
             device_data[DISPATCH][cmd_stage] = ""
-        device_data[DISPATCH][cmd_stage].append(f'{cmd}\n')
+        device_data[DISPATCH][cmd_stage] += f'{cmd}\n'
 
     def add_vf_driver_override(self, sriov_vf):
         if not sriov_vf.driver:
+            logger.error('KART Expecting driver to be set for DPDK')
             return
 
-        pci_address = utils.get_pci_address(sriov_vf.name)
+        pci_address = utils.get_pci_address(sriov_vf.name, self.noop)
         if not pci_address:
-            pci_address = utils.get_stored_pci_address(sriov_vf.name)
+            pci_address = utils.get_stored_pci_address(sriov_vf.name, self.noop)
         if not pci_address:
             msg = f'pci_address could not be found for {sriov_vf.name}'
             raise os_net_config.ConfigurationError(msg)
         bind_cmd = (f'os-net-config-bind -p {pci_address} '
                     f'--driver {sriov_vf.driver} -d')
+        logger.info(f'KART Adding dispatch script for {sriov_vf.device}')
         self.add_dispatch_script(self.sriov_pf_data[sriov_vf.device],
                                  POST_ACTIVATION, bind_cmd)
 
@@ -1818,7 +1821,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
                   f" {sriov_vf.device} is not availavle"
             raise os_net_config.ConfigurationError(msg)
 
-        self.add_vf_driver_override(sriov_vf)
 
         self.sriov_vf_data[sriov_vf.device][sriov_vf.vfid] = vf_config
         if sriov_vf.ethtool_opts:

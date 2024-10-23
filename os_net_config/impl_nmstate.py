@@ -67,6 +67,8 @@ _ROUTE_TABLE_DEFAULT = """# reserved values
 IPV4_DEFAULT_GATEWAY_DESTINATION = "0.0.0.0/0"
 IPV6_DEFAULT_GATEWAY_DESTINATION = "::/0"
 
+POST_ACTIVATION = 'post-activation'
+DISPATCH = 'dispatch'
 
 def route_table_config_path():
     return "/etc/iproute2/rt_tables"
@@ -1767,6 +1769,28 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.sriov_pf_data[sriov_pf.name] = data
         self.apply_pf = True
 
+    def add_dispatch_script(self, device_data, cmd_stage, cmd):
+        if DISPATCH not in device_data:
+            device_data[DISPATCH] = {}
+        if cmd_stage not in device_data[DISPATCH]:
+            device_data[DISPATCH][cmd_stage] = ""
+        device_data[DISPATCH][cmd_stage].append(f'{cmd}\n')
+
+    def add_vf_driver_override(self, sriov_vf):
+        if not sriov_vf.driver:
+            return
+
+        pci_address = utils.get_pci_address(sriov_vf.name)
+        if not pci_address:
+            pci_address = utils.get_stored_pci_address(sriov_vf.name)
+        if not pci_address:
+            msg = f'pci_address could not be found for {sriov_vf.name}'
+            raise os_net_config.ConfigurationError(msg)
+        bind_cmd = (f'os-net-config-bind -p {pci_address} '
+                    f'--driver {sriov_vf.driver} -d')
+        self.add_dispatch_script(self.sriov_pf_data[sriov_vf.device],
+                                 POST_ACTIVATION, bind_cmd)
+
     def add_sriov_vf(self, sriov_vf):
         """Add a SriovVF object to the net config object
 
@@ -1793,6 +1817,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             msg = f"VF configuration is seen while the parent device"\
                   f" {sriov_vf.device} is not availavle"
             raise os_net_config.ConfigurationError(msg)
+
+        self.add_vf_driver_override(sriov_vf)
 
         self.sriov_vf_data[sriov_vf.device][sriov_vf.vfid] = vf_config
         if sriov_vf.ethtool_opts:

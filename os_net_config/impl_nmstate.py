@@ -1607,6 +1607,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         logger.info(f'adding linux bridge: {bridge.name}')
         data = self._add_common(bridge)
+        data[Interface.TYPE] = InterfaceType.LINUX_BRIDGE
+        data[Interface.STATE] = InterfaceState.UP
+        ports = []
+        for member in bridge.members:
+            ports.append({Bridge.Port.NAME: member.name})
+        data[Bridge.CONFIG_SUBTREE] = {PORT_SUBTREE: ports}
+        if primary_interface_name:
+            data[Interface.COPY_MAC_FROM] = bridge.primary_interface_name
         logger.debug('bridge data: %s' % data)
         self.linuxbridge_data[bridge.name] = data
 

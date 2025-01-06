@@ -111,7 +111,6 @@ def configure_sriov_bind_service():
         f.write(_SRIOV_BIND_SERVICE_CONTENT)
     processutils.execute('systemctl', 'enable', 'sriov_bind')
 
-
 def bind_vfs(sriov_bind_pcis_map=None):
     if not sriov_bind_pcis_map:
         sriov_bind_pcis_map = _get_sriov_bind_pcis_map()

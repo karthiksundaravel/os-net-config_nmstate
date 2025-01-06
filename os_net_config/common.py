@@ -421,6 +421,17 @@ def is_vf_by_name(interface_name, check_mapping_file=False):
     return is_sriov_vf
 
 
+def unset_driverctl_override(pci_address):
+    cmd = ["driverctl", "unset-override", pci_address]
+    try:
+        out, err = processutils.execute(*cmd)
+        if err:
+            msg = f"{pci_address}: Failed to unbind dpdk interface. {err}"
+            raise OvsDpdkBindException(msg)
+    except processutils.ProcessExecutionError:
+        msg = f"{pci_address}: Failed to bind interface with dpdk"
+        raise OvsDpdkBindException(msg)
+
 def set_driverctl_override(pci_address, driver):
     if driver is None:
         logger.info("%s: Driver override is not required.", pci_address)

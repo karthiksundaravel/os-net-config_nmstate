@@ -1,0 +1,8 @@
+interface_mapping:
+    nic1: eno8303
+    nic2: ens1f0
+    nic3: ens1f1
+    nic4: ens1f2
+    nic5: ens1f3
+    nic6: ens2f0np0
+    nic7: ens2f1np1

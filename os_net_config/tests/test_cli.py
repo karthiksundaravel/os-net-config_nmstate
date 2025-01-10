@@ -182,6 +182,31 @@ class TestCli(base.TestCase):
             self.assertIn(dev, stdout_yaml)
         self.assertEqual(stdout_yaml, stdout_json)
 
+    def test_nic_part_noop_output(self):
+        nic_part_yaml = os.path.join(SAMPLE_BASE, "nic_part.yaml")
+        stdout_yaml, stderr = self.run_cli("ARG0 --provider=ifcfg --noop "
+                                           "--exit-on-validation-errors "
+                                           f"-c {nic_part_yaml} "
+                                           "-m mapping_noop.yaml")
+        self.assertEqual("", stderr)
+        sanity_devices = ["DEVICE=dpdkbond0",
+                          "DEVICE=dpdk2",
+                          "DEVICE=storage_bond",
+                          "DEVICE=bond_api",
+                          "DEVICE=br-dpdk0",
+                          "DEVICE=br-link0",
+                          "DEVICE=ens1f2v1",
+                          "DEVICE=ens1f1v1",
+                          "DEVICE=ens1f2v0",
+                          "DEVICE=ens1f0",
+                          "DEVICE=eno8303",
+                          "DEVICE=ens2f1np1",
+                          "DEVICE=ens2f0np0",
+                          "DEVICE=ens1f2",
+                          "DEVICE=ens1f1"]
+        for dev in sanity_devices:
+            self.assertIn(dev, stdout_yaml)
+
     def test_bridge_noop_rootfs(self):
         for provider in ('ifcfg', 'eni'):
             bond_yaml = os.path.join(SAMPLE_BASE, 'bridge_dhcp.yaml')

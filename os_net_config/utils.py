@@ -26,6 +26,7 @@ from os_net_config import sriov_config
 from oslo_concurrency import processutils
 
 logger = logging.getLogger(__name__)
+
 # sriov_config service shall be created and enabled so that the various
 # SR-IOV PF and VF configurations shall be done during reboot as well using
 # sriov_config.py installed in path /usr/bin/os-net-config-sriov
@@ -548,6 +549,12 @@ def _configure_sriov_config_service():
     with open(_SRIOV_CONFIG_SERVICE_FILE, 'w') as f:
         f.write(_SRIOV_CONFIG_DEVICE_CONTENT)
     processutils.execute('systemctl', 'enable', 'sriov_config')
+
+
+def disable_sriov_config_service():
+    if common.get_noop():
+        return
+    processutils.execute("systemctl", "disable", "sriov_config")
 
 
 def configure_sriov_pfs(execution_from_cli=False, restart_openvswitch=False):

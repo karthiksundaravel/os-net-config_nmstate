@@ -59,10 +59,10 @@ def parse_opts(argv):
     parser.add_argument('-r', '--root-dir', metavar='ROOT_DIR',
                         help="""The root directory of the filesystem.""",
                         default='')
-    p_group = parser.add_mutually_exclusive_group(required=True)
+    p_group = parser.add_mutually_exclusive_group(required=False)
     p_group.add_argument('-p', '--provider', metavar='PROVIDER',
                         help="""The provider to use. """
-                        """One of: ifcfg, eni, nmstate, iproute.""",
+                        """One of: ifcfg, eni, nmstate, iproute."""
                         """It is mutually exclusive with --purge-provider.""",
                         choices=_PROVIDERS.keys(),
                         default=None)

@@ -20,6 +20,7 @@ import os
 import re
 import time
 import yaml
+import shutil
 
 from os_net_config import common
 from os_net_config import sriov_config
@@ -609,6 +610,20 @@ def get_vf_devname(pf_name, vfid):
     # /sys/class/net/<pf_name>/device/virtfn<vfid>/net
     return vf_nic[0]
 
+
+def backup_map_files(backup_path):
+    src_files = [common.DPDK_MAPPING_FILE,
+                 common.SRIOV_CONFIG_FILE,
+                 sriov_config._UDEV_LEGACY_RULE_FILE
+                 ]
+    for src in src_files:
+        if os.path.exists(src):
+            src_name = os.path.basename(common.DPDK_MAPPING_FILE)
+            bkup_file = os.path.join(backup_path, src_name)
+            logger.info("Moving %s -> %s", src, bkup_file)
+            shutil.move(src, bkup_file)
+        else:
+            logger.warning("%s is absent", src)
 
 def restart_vpp(vpp_interfaces):
     for vpp_int in vpp_interfaces:

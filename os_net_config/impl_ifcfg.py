@@ -47,7 +47,7 @@ _ROUTE_TABLE_DEFAULT = """# reserved values
 #
 #1\tinr.ruhep\n"""
 
-PURGE_IFCFG_FILES = '/var/lib/os-net-config/ifcfg-purge/'
+BACKUP_IFCFG_FILES_PATH = '/var/lib/os-net-config/ifcfg-purge/'
 NETWORK_SCRIPTS_PATH = '/etc/sysconfig/network-scripts/'
 
 
@@ -1512,6 +1512,10 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         for sriov_dev in self.del_device["sriov_pf"]:
             logger.info("%s: Purging SR-IOV device", sriov_dev)
             self.purge(sriov_dev)
+        for ifcfg_file in glob.iglob(cleanup_pattern()):
+            iface = ifcfg_file[len(cleanup_pattern()) - 1:]
+            self.move_ifcfg(iface)
+        utils.backup_map_files(BACKUP_IFCFG_FILES_PATH)
 
     def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.
@@ -2324,39 +2328,37 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         route6_file = route6_config_path(iface_name)
         rule_file = route_rule_config_path(iface_name)
 
-        if not os.path.exists(PURGE_IFCFG_FILES):
-            os.makedirs(PURGE_IFCFG_FILES)
-        if os.path.exists(ifcfg_file):
-            new_ifcfg_file = os.path.join(PURGE_IFCFG_FILES,
-                                          f'ifcfg-{iface_name}')
-            logger.info("Moving %s -> %s", ifcfg_file, new_ifcfg_file)
-            shutil.move(ifcfg_file, new_ifcfg_file)
-        if os.path.exists(route_file):
-            new_route_file = os.path.join(PURGE_IFCFG_FILES,
-                                          f'route-{iface_name}')
-            logger.info("Moving %s -> %s", route_file, new_route_file)
-            shutil.move(route_file, new_route_file)
-        if os.path.exists(route6_file):
-            new_route6_file = os.path.join(PURGE_IFCFG_FILES,
-                                           f'route6-{iface_name}')
-            logger.info("Moving %s - %s", route6_file, new_route6_file)
-            shutil.move(route6_file, new_route6_file)
-        if os.path.exists(rule_file):
-            new_rule_file = os.path.join(PURGE_IFCFG_FILES,
-                                         f'rule-{iface_name}')
-            logger.info("Moving %s -> %s", rule_file, new_rule_file)
-            shutil.move(rule_file, new_rule_file)
+        if not os.path.exists(BACKUP_IFCFG_FILES_PATH):
+            os.makedirs(BACKUP_IFCFG_FILES_PATH)
+        src_files = [ifcfg_file,
+                     route_file,
+                     route6_file,
+                     rule_file
+                  ]
+        for src in src_files:
+            if self._is_os_net_config_managed(src):
+                filename = os.path.basename(src) 
+                bkup_file = os.path.join(BACKUP_IFCFG_FILES_PATH,
+                                         filename)
+                logger.info("Moving %s -> %s", ifcfg_file, bkup_file)
+                shutil.move(src, bkup_file)
+            else:
+                logger.warning("%s: not found", src)
 
-    def purge(self, iface_name):
-        ifcfg_file = ifcfg_config_path(iface_name)
+    def _is_os_net_config_managed(self, ifcfg_file):
         if os.path.exists(ifcfg_file):
             with open(ifcfg_file, 'r') as f:
                 file_content = f.read()
             if _IFCFG_FILE_HEADER in file_content:
-                logger.info("%s: Bringing down", iface_name)
-                self.ifdown(iface_name)
-                self.move_ifcfg(iface_name)
-            else:
-                logger.info(
-                    "%s: Device is not managed by ifcfg provider", iface_name
-                )
+                return True
+        return False
+
+    def purge(self, iface_name):
+        ifcfg_file = ifcfg_config_path(iface_name)
+        if self._is_os_net_config_managed(ifcfg_file):
+            logger.info("%s: Bringing down", iface_name)
+            self.ifdown(iface_name)
+        else:
+            logger.info(
+                "%s: Device is not managed by ifcfg provider", iface_name
+            )

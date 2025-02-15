@@ -898,8 +898,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param interface: The Interface object to be deleted.
         """
-        logger.info("%s: Deleting", interface)
-        self._del_common(interface)
+        return
 
     def add_vlan(self, vlan):
         """Add a Vlan object to the net config object.
@@ -920,8 +919,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param vlan: The vlan object to be deleted.
         """
-        logger.info("%s: Deleting vlan ", vlan)
-        self._del_common(vlan)
+        return
 
     def add_ivs_interface(self, ivs_interface):
         """Add a ivs_interface object to the net config object.
@@ -1073,8 +1071,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param bond: The LinuxBond object to be deleted.
         """
-        logger.info("%s: Deleting linux bond", bond.name)
-        self._del_common(bond)
+        return
 
     def add_linux_team(self, team):
         """Add a LinuxTeam object to the net config object.
@@ -1137,8 +1134,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param ib_interface: The InfiniBand interface object to be deleted
         """
-        logger.info("%s: Deleting ib_interface", ib_interface.name)
-        self._del_common(ib_interface)
+        return
 
     def add_ib_child_interface(self, ib_child_interface):
         """Add an InfiniBand child interface object to the net config object.
@@ -1164,8 +1160,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param ib_child_interface: The InfiniBand child
          interface object to be deleted.
         """
-        logger.info("%s: Deleting ib_child_interface", ib_child_interface.name)
-        self._del_common(ib_child_interface)
+        return
 
     def add_ovs_dpdk_port(self, ovs_dpdk_port):
         """Add a OvsDpdkPort object to the net config object.

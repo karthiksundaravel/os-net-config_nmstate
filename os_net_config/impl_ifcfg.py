@@ -163,9 +163,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         self.member_names = {}
         self.renamed_interfaces = {}
         self.bond_primary_ifaces = {}
-        self.remove_iface = []
-        self.remove_dpdk_devs = []
-        self.remove_sriov_pfs = []
+        self.del_device = {
+                "iface": [],
+                "dpdk": [],
+                "dpdk_port": [],
+                "sriov_pf": [],
+            }
         logger.info('Ifcfg net config provider created.')
 
     def parse_ifcfg(self, ifcfg_data):
@@ -485,7 +488,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         return children
 
     def _del_common(self, base_opt):
-        self.remove_iface.append(base_opt.name)
+        self.del_device["iface"].append(base_opt.name)
 
     def _add_common(self, base_opt):
 
@@ -992,7 +995,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param bridge: The OvsUserBridge object to be deleted.
         """
         logger.info("%s: Deleting ovs user bridge", bridge.name)
-        self.remove_dpdk_devs.append(bridge.name)
+        self.del_device["dpdk"].append(bridge.name)
 
     def add_linux_bridge(self, bridge):
         """Add a LinuxBridge object to the net config object.
@@ -1198,7 +1201,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param ovs_dpdk_port: The OvsDpdkPort object to be deleted.
         """
         logger.info("%s: Deleting ovs dpdk port", ovs_dpdk_port.name)
-        self.remove_dpdk_devs.append(ovs_dpdk_port.name)
+        self.del_device["dpdk"].append(ovs_dpdk_port.name)
+        self.del_device["dpdk_port"].append(ovs_dpdk_port.members[0].name)
 
     def add_ovs_dpdk_bond(self, ovs_dpdk_bond):
         """Add an OvsDPDKBond object to the net config object.
@@ -1242,7 +1246,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param ovs_dpdk_bond: The OvsBond object to be deleted.
         """
         logger.info("%s: Deleting ovs dpdk bond", ovs_dpdk_bond.name)
-        self.remove_dpdk_devs.append(ovs_dpdk_bond.name)
+        self.del_device["dpdk"].append(ovs_dpdk_bond.name)
+        for dpdk_port in ovs_dpdk_bond.members:
+            self.del_device["dpdk_port"].append(dpdk_port.members[0].name)
 
     def add_sriov_pf(self, sriov_pf):
         """Add a SriovPF object to the net config object
@@ -1267,7 +1273,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         if sriov_pf.link_mode == "switchdev":
             msg = f"{sriov_pf.name} can't be removed by ifcfg provider"
             raise os_net_config.ConfigurationError(msg)
-        self.remove_sriov_pfs.append(sriov_pf.name)
+        self.del_device["sriov_pf"].append(sriov_pf.name)
 
     def add_sriov_vf(self, sriov_vf):
         """Add a SriovVF object to the net config object
@@ -1489,21 +1495,25 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         % (id, route_tables[id])
         return data
 
+    def destroy_dpdk_interfaces(self):
+        for iface in self.del_device["dpdk_port"]:
+            utils.remove_dpdk_interfaces(iface)
+
     def destroy(self):
         """Destroy the network configuration.
 
         Clears the network configuration which is previously configured via
         the same provider.
         """
-        for iface in self.remove_dpdk_devs:
+        for iface in self.del_device["dpdk"]:
             logger.info("%s: Purging ", iface)
             self.purge(iface)
-        for iface in self.remove_iface:
+        for iface in self.del_device["iface"]:
             logger.info("%s: Purging ", iface)
             self.purge(iface)
-        utils.remove_dpdk_interfaces()
+        self.destroy_dpdk_interfaces()
 
-        if self.remove_sriov_pfs:
+        if self.del_device["sriov_pf"]:
             utils.disable_sriov_config_service()
 
         for ifcfg_file in glob.iglob(cleanup_pattern()):

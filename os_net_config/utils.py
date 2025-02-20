@@ -35,6 +35,8 @@ After=systemd-udev-settle.service NetworkManager.service \
 openvswitch.service network.target \
 NetworkManager-dispatcher.service network.service
 
+Requires=NetworkManager-dispatcher.service NetworkManager.service
+
 [Service]
 Type=oneshot
 ExecStart={args}
@@ -312,17 +314,21 @@ def bind_dpdk_interfaces(ifname, driver, noop):
         raise common.OvsDpdkBindException(msg)
 
 
-def remove_dpdk_interfaces():
+def remove_dpdk_interfaces(iface):
     dpdk_map = common.get_dpdk_map()
     for dpdk_nic in dpdk_map:
-        err = detach_dpdk_interfaces(dpdk_nic["pci_address"])
-        if not err:
-            err = unbind_dpdk_interfaces(dpdk_nic["pci_address"])
-        if err:
-            logger.error(
-                "%s: Failed to unbind/detach dpdk interface",
-                dpdk_nic["name"],
-            )
+        if dpdk_nic["name"] == iface:
+            err = detach_dpdk_interfaces(dpdk_nic["pci_address"])
+            if not err:
+                err = unbind_dpdk_interfaces(dpdk_nic["pci_address"])
+            if err:
+                logger.error(
+                    "%s: Failed to unbind/detach dpdk interface",
+                    dpdk_nic["name"],
+                )
+            break
+    else:
+        logger.error("%s: could not find in dpdk_mapping.yaml", iface)
 
 
 def restore_dpdk_interfaces():

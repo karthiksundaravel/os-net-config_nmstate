@@ -847,7 +847,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
         )
 
         for c_route in curr_routes:
-            if c_route not in add_routes:
+            for a_route in add_routes:
+                if is_dict_subset(c_route, a_route):
+                    break
+            else:
                 clean_routes = True
                 break
         if clean_routes:
@@ -1200,7 +1203,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self._add_routes(base_opt.name, base_opt.routes)
         if base_opt.rules:
             self._add_rules(base_opt.name, base_opt.rules)
-        self.initial_dispatch_scripts(data)
         return data
 
     def _add_routes(self, interface_name, routes=[]):
@@ -1428,11 +1430,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
             device_data[DISPATCH][stage] = DISPATCHER_SCRIPT_PREFIX
         device_data[DISPATCH][stage] += f'{cmd}\n'
 
-    def initial_dispatch_scripts(self, device_data):
-        if DISPATCH not in device_data:
-            device_data[DISPATCH] = {}
-        device_data[DISPATCH][POST_ACTIVATION] = ""
-        device_data[DISPATCH][POST_DEACTIVATION] = ""
+    def remove_empty_dispatch_scripts(self, cur_state, new_state):
+        if cur_state and DISPATCH in cur_state.keys():
+            if DISPATCH in new_state.keys():
+                if POST_ACTIVATION not in new_state[DISPATCH].keys():
+                    new_state[DISPATCH][POST_ACTIVATION] = ""
+                if POST_DEACTIVATION not in new_state[DISPATCH].keys():
+                    new_state[DISPATCH][POST_DEACTIVATION] = ""
+            else:
+                new_state[DISPATCH] = {POST_ACTIVATION: "",
+                                       POST_DEACTIVATION: ""}
 
     def add_vf_driver_override(self, vf):
         """Add driver override for VFs
@@ -2363,6 +2370,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for interface_name, iface_data in self.interface_data.items():
             iface_state = self.iface_state(interface_name)
+            self.remove_empty_dispatch_scripts(iface_state, iface_data)
             if not is_dict_subset(iface_state, iface_data):
                 updated_interfaces[interface_name] = iface_data
             else:
@@ -2374,6 +2382,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         for bridge_name, bridge_data in self.bridge_data.items():
 
             bridge_state = self.iface_state(bridge_name)
+            self.remove_empty_dispatch_scripts(bridge_state, bridge_data)
             if not is_dict_subset(bridge_state, bridge_data):
                 updated_interfaces[bridge_name] = bridge_data
             else:
@@ -2385,6 +2394,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for bond_name, bond_data in self.linuxbond_data.items():
             bond_state = self.iface_state(bond_name)
+            self.remove_empty_dispatch_scripts(bond_state, bond_data)
             if not is_dict_subset(bond_state, bond_data):
                 updated_interfaces[bond_name] = bond_data
             else:
@@ -2395,6 +2405,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for vlan_name, vlan_data in self.vlan_data.items():
             vlan_state = self.iface_state(vlan_name)
+            self.remove_empty_dispatch_scripts(vlan_state, vlan_data)
             if not is_dict_subset(vlan_state, vlan_data):
                 updated_interfaces[vlan_name] = vlan_data
             else:

@@ -16,7 +16,6 @@
 
 import os
 import os.path
-import random
 import shutil
 import tempfile
 
@@ -28,10 +27,21 @@ from os_net_config.tests import base
 
 class TestSriovConfig(base.TestCase):
     """Unit tests for methods defined in sriov_config.py"""
+    common._LOG_FILE = '/tmp/' + 'os_net_config.log'
+    sriov_config._UDEV_RULE_FILE = '/tmp/' + 'etc_udev_rules.d'\
+        '80-persistent-os-net-config.rules'
+    sriov_config._UDEV_LEGACY_RULE_FILE = '/tmp/' + 'etc_udev_'\
+        'rules.d_70-os-net-config-sriov.rules'
+    sriov_config._IFUP_LOCAL_FILE = '/tmp/' + 'sbin_ifup-local'
+    sriov_config._RESET_SRIOV_RULES_FILE = '/tmp/' + 'etc_udev_'\
+        'rules.d_70-tripleo-reset-sriov.rules'
+    sriov_config._ALLOCATE_VFS_FILE = '/tmp/' + 'etc_sysconfig_'\
+        'allocate_vfs'
+    common.SRIOV_CONFIG_FILE = '/tmp/' + 'sriov_config.yaml'
+    sriov_config._REP_LINK_NAME_FILE = '/tmp/' + 'rep_link.sh'
 
     def setUp(self):
         super(TestSriovConfig, self).setUp()
-        rand = str(int(random.random() * 100000))
         common.set_noop(False)
 
         def execute_noop(*args, **kw):
@@ -41,23 +51,12 @@ class TestSriovConfig(base.TestCase):
         self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
         self.stub_out('oslo_concurrency.processutils.execute', execute_noop)
 
-        common._LOG_FILE = '/tmp/' + rand + 'os_net_config.log'
-        sriov_config._UDEV_RULE_FILE = '/tmp/' + rand + 'etc_udev_rules.d'\
-            '80-persistent-os-net-config.rules'
-        sriov_config._UDEV_LEGACY_RULE_FILE = '/tmp/' + rand + 'etc_udev_'\
-            'rules.d_70-os-net-config-sriov.rules'
-        sriov_config._IFUP_LOCAL_FILE = '/tmp/' + rand + 'sbin_ifup-local'
-        sriov_config._RESET_SRIOV_RULES_FILE = '/tmp/' + rand + 'etc_udev_'\
-            'rules.d_70-tripleo-reset-sriov.rules'
-        sriov_config._ALLOCATE_VFS_FILE = '/tmp/' + rand + 'etc_sysconfig_'\
-            'allocate_vfs'
-        common.SRIOV_CONFIG_FILE = '/tmp/' + rand + 'sriov_config.yaml'
-        sriov_config._REP_LINK_NAME_FILE = '/tmp/' + rand + 'rep_link.sh'
-
     def tearDown(self):
         super(TestSriovConfig, self).tearDown()
         if os.path.isfile(common._LOG_FILE):
             os.remove(common._LOG_FILE)
+        if os.path.isfile(sriov_config._UDEV_RULE_FILE):
+            os.remove(sriov_config._UDEV_RULE_FILE)
         if os.path.isfile(common.SRIOV_CONFIG_FILE):
             os.remove(common.SRIOV_CONFIG_FILE)
         if os.path.isfile(sriov_config._IFUP_LOCAL_FILE):
@@ -69,6 +68,8 @@ class TestSriovConfig(base.TestCase):
             os.remove(sriov_config._ALLOCATE_VFS_FILE)
         if os.path.isfile(sriov_config._UDEV_LEGACY_RULE_FILE):
             os.remove(sriov_config._UDEV_LEGACY_RULE_FILE)
+        if os.path.isfile(sriov_config._REP_LINK_NAME_FILE):
+            os.remove(sriov_config._REP_LINK_NAME_FILE)
 
     def _write_numvfs(self, ifname, numvfs=0, autoprobe=True):
         os.makedirs(common.get_dev_path(ifname, '_device'))
@@ -466,9 +467,9 @@ class TestSriovConfig(base.TestCase):
         sriov_config.configure_sriov_pf()
         self.assertEqual(exp_actions, self._action_order)
         f = open(sriov_config._UDEV_LEGACY_RULE_FILE, 'r')
-        self.assertEqual(exp_udev_content, f.read())
         self.assertEqual(10, sriov_config.get_numvfs('p2p1'))
         self.assertEqual(12, sriov_config.get_numvfs('p2p2'))
+        self.assertEqual(exp_udev_content, f.read())
 
     def test_configure_sriov_pf_non_nicpart(self):
         """Test the udev rules created for legacy mode of SR-IOV PF

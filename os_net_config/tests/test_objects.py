@@ -434,12 +434,11 @@ class TestVlan(base.TestCase):
 
 
 class TestBridge(base.TestCase):
+    common.SRIOV_CONFIG_FILE = '/tmp/sriov_config.yaml'
 
     def setUp(self):
         super(TestBridge, self).setUp()
         common.set_noop(False)
-        rand = str(int(random.random() * 100000))
-        common.SRIOV_CONFIG_FILE = '/tmp/sriov_config_' + rand + '.yaml'
 
         def stub_is_ovs_installed():
             return True
@@ -1219,12 +1218,11 @@ class TestLinuxTeam(base.TestCase):
 
 
 class TestLinuxBond(base.TestCase):
+    common.SRIOV_CONFIG_FILE = '/tmp/sriov_config.yaml'
 
     def setUp(self):
         super(TestLinuxBond, self).setUp()
         common.set_noop(False)
-        rand = str(int(random.random() * 100000))
-        common.SRIOV_CONFIG_FILE = '/tmp/sriov_config_' + rand + '.yaml'
 
         def stub_is_ovs_installed():
             return True
@@ -1988,6 +1986,7 @@ class TestNicMapping(base.TestCase):
 
 
 class TestSriovPF(base.TestCase):
+    common.SRIOV_CONFIG_FILE = '/tmp/sriov_config.yaml'
 
     def setUp(self):
         super(TestSriovPF, self).setUp()
@@ -2003,6 +2002,11 @@ class TestSriovPF(base.TestCase):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
                       test_update_sriov_pf_map)
+
+    def tearDown(self):
+        super(TestSriovPF, self).tearDown()
+        if os.path.isfile(common.SRIOV_CONFIG_FILE):
+            os.remove(common.SRIOV_CONFIG_FILE)
 
     def test_from_json_numvfs(self):
         data = '{"type": "sriov_pf", "name": "em1", "numvfs": 16,' \
@@ -2137,6 +2141,7 @@ class TestSriovPF(base.TestCase):
 
 
 class TestSriovVF(base.TestCase):
+    common.SRIOV_CONFIG_FILE = '/tmp/sriov_config.yaml'
 
     def setUp(self):
         super(TestSriovVF, self).setUp()
@@ -2144,6 +2149,8 @@ class TestSriovVF(base.TestCase):
 
     def tearDown(self):
         super(TestSriovVF, self).tearDown()
+        if os.path.isfile(common.SRIOV_CONFIG_FILE):
+            os.remove(common.SRIOV_CONFIG_FILE)
 
     def test_from_json_zero_vfid(self):
         def test_get_vf_devname(device, vfid):

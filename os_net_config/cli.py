@@ -216,19 +216,6 @@ def main(argv=sys.argv, main_logger=None):
     files_changed = {}
     migration_failed = False
 
-    if not opts.provider:
-        ifcfg_path = f'{opts.root_dir}/etc/sysconfig/network-scripts/'
-        if is_nmstate_available():
-            opts.provider = "nmstate"
-        elif os.path.exists(ifcfg_path):
-            opts.provider = "ifcfg"
-        elif os.path.exists('%s/etc/network/' % opts.root_dir):
-            opts.provider = "eni"
-        else:
-            main_logger.error("Unable to set provider for this operating "
-                              "system.")
-            return 1
-
     if opts.purge_provider:
         if opts.purge_provider == opts.provider:
             main_logger.error("purge-provider and provider can't be the same")
@@ -344,6 +331,20 @@ def main(argv=sys.argv, main_logger=None):
                 continue
             purge_provider.del_object(obj)
         purge_provider.destroy()
+        return 0
+
+    if not opts.provider:
+        ifcfg_path = f'{opts.root_dir}/etc/sysconfig/network-scripts/'
+        if is_nmstate_available():
+            opts.provider = "nmstate"
+        elif os.path.exists(ifcfg_path):
+            opts.provider = "ifcfg"
+        elif os.path.exists('%s/etc/network/' % opts.root_dir):
+            opts.provider = "eni"
+        else:
+            main_logger.error("Unable to set provider for this operating "
+                              "system.")
+            return 1
 
     try:
         provider = load_provider(opts.provider, opts.noop, opts.root_dir)

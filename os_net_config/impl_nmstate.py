@@ -106,6 +106,7 @@ POST_ACTIVATION = 'post-activation'
 POST_DEACTIVATION = 'post-deactivation'
 DISPATCH = 'dispatch'
 CONFIG_RULES_FILE = '/var/lib/os-net-config/nmstate_files/rules.yaml'
+BACKUP_NMSTATE_FILES_PATH = '/var/lib/os-net-config/nmstate_files'
 
 
 def route_table_config_path():
@@ -358,6 +359,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         #  {pf1: {vfid1: driver, vfid2: driver},
         #   pf2: {vfid1: driver, vfid2: driver}}
         self.vf_drv_override = {}
+        self.del_iface = {
+                "iface": [],
+                "dpdk": [],
+                "dpdk_port": [],
+                "sriov_pf": []
+            }
         # Boolean flag to indicate that the PF ports are added
         # and needs configuration. The PF ports will be configured
         # separately if the flag is set.
@@ -1184,6 +1191,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self._add_rules(base_opt.name, base_opt.rules)
         return data
 
+
     def _add_routes(self, interface_name, routes=[]):
         """Adds the routes in nmstate schema format
 
@@ -1441,6 +1449,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if vf.driver:
             self.vf_drv_override[vf.device][vf.vfid] = vf.driver
 
+    def del_interface(self, interface):
+        iface_data = {Interface.NAME: interface.name,
+                      Interface.TYPE: InterfaceType.ETHERNET,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["iface"].append(iface_data)
+
     def add_interface(self, interface):
         """Add an Interface object to the net config object.
 
@@ -1491,6 +1505,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         self.__dump_key_config(data, msg=f"{interface.name}: Prepared config")
         self.interface_data[interface.name] = data
+
+    def del_vlan(self, vlan):
+        if vlan.bridge_name:
+            obj_type = InterfaceType.OVS_INTERFACE
+        else:
+            obj_type = InterfaceType.VLAN
+        iface_data = {Interface.NAME: vlan.name,
+                      Interface.TYPE: obj_type,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["iface"].append(iface_data)
 
     def add_vlan(self, vlan):
         """Add a Vlan object to the net config object.
@@ -1950,6 +1974,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.bridge_data[bridge.name] = data
         self.__dump_config(data, msg=f"{bridge.name}: Prepared config")
 
+    def del_bridge(self, bridge):
+        iface_data = {Interface.NAME: bridge.name,
+                      Interface.TYPE: OVSBridge.TYPE,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["iface"].append(iface_data)
+
     def add_ovs_user_bridge(self, bridge):
         """Add an OvsUserBridge object to the net config object.
 
@@ -1957,6 +1987,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """
         logger.info("%s: adding ovs user bridge", bridge.name)
         self.add_bridge(bridge, dpdk=True)
+
+    def del_ovs_user_bridge(self, bridge):
+        iface_data = {Interface.NAME: bridge.name,
+                      Interface.TYPE: OVSBridge.TYPE,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["iface"].append(iface_data)
 
     def attach_patch_port_with_bridge(self, patch_port):
         """Add a patch port to bridge from patch port settings in json.
@@ -1999,6 +2035,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.attach_patch_port_with_bridge(ovs_patch_port)
         self.__dump_config(data, msg=f"{ovs_patch_port.name}: Prepared config")
 
+    def del_ovs_patch_port(self, ovs_patch_port):
+        iface_data = {Interface.NAME: ovs_patch_port.name,
+                      Interface.TYPE: OVSInterface.TYPE,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["iface"].append(iface_data)
+
     def add_ovs_interface(self, ovs_interface):
         """Add a OvsInterface object to the net config object.
 
@@ -2013,6 +2055,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
             data[Interface.MAC] = ovs_interface.hwaddr
         self.interface_data[ovs_interface.name + '-if'] = data
         self.__dump_config(data, msg=f"{ovs_interface.name}: Prepared config")
+
+    def del_ovs_interface(self, ovs_interface):
+        iface_data = {Interface.NAME: ovs_interface.name,
+                      Interface.TYPE: OVSInterface.TYPE,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["iface"].append(iface_data)
 
     def add_ovs_dpdk_port(self, ovs_dpdk_port):
         """Add a OvsDpdkPort object to the net config object.
@@ -2068,6 +2116,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.interface_data[ovs_dpdk_port.name] = data
         self.__dump_config(data, msg=f"{ovs_dpdk_port.name}: Prepared config")
 
+    def del_ovs_dpdk_port(self, ovs_dpdk_port):
+        iface_data = {Interface.NAME: ovs_dpdk_port.name,
+                      Interface.TYPE: OVSInterface.TYPE,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["dpdk"].append(iface_data)
+        self.del_iface["dpdk_port"].append(ovs_dpdk_port.members[0].name)
+
     def add_linux_bridge(self, bridge):
         """Add a LinuxBridge object to the net config object.
 
@@ -2077,6 +2132,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         data = self._add_common(bridge)
         self.linuxbridge_data[bridge.name] = data
         self.__dump_config(data, msg=f"{bridge.name}: Prepared config")
+
+    def del_linux_bridge(self, bridge):
+        iface_data = {Interface.NAME: bridge.name,
+                      Interface.TYPE: InterfaceType.LINUX_BRIDGE,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["iface"].append(iface_data)
 
     def add_bond(self, bond):
         """Add an OvsBond object to the net config object.
@@ -2107,6 +2168,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self.add_ovs_dpdk_port(member)
         return
 
+    def del_ovs_dpdk_bond(self, bond):
+        logger.info("%s: deleting ovs_dpdk_bond", bond.name)
+        for member in bond.members:
+            iface_data = {Interface.NAME: member.name,
+                          Interface.TYPE: OVSInterface.TYPE,
+                          Interface.STATE: InterfaceState.ABSENT}
+            self.del_iface["dpdk"].append(iface_data)
+            self.del_iface["dpdk_port"].append(member.members[0].name)
+
     def add_linux_bond(self, bond):
         """Add a LinuxBond object to the net config object.
 
@@ -2134,6 +2204,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         self.linuxbond_data[bond.name] = data
         self.__dump_config(data, msg=f"{bond.name}: Prepared config")
+
+    def del_linux_bond(self, bond):
+        iface_data = {Interface.NAME: bond.name,
+                      Interface.TYPE: InterfaceType.BOND,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["iface"].append(iface_data)
 
     def add_sriov_pf(self, sriov_pf):
         """Add a SriovPF object to the net config object
@@ -2197,6 +2273,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.need_pf_config = True
         self.__dump_config(data, msg=f"{sriov_pf.name}: Prepared config")
 
+    def del_sriov_pf(self, sriov_pf):
+        iface_data = {Interface.NAME: sriov_pf.name,
+                      Interface.TYPE: InterfaceType.ETHERNET,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["sriov_pf"].append(iface_data)
+
     def __add_sriov_vf_config(self, sriov_vf):
         # sriov_vf_data is a list of vf configuration data of size numvfs.
         # The vfid is used as index.
@@ -2235,6 +2317,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
             data, msg=(f"{sriov_vf.device}-{sriov_vf.vfid}: Prepared config")
         )
 
+    def del_sriov_vf(self, sriov_vf):
+        iface_data = {Interface.NAME: sriov_vf.name,
+                      Interface.TYPE: InterfaceType.ETHERNET,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["iface"].append(iface_data)
+
     def add_ib_interface(self, ib_interface):
         """Add an InfiniBand interface object to the net config object.
 
@@ -2253,6 +2341,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         data[InfiniBand.CONFIG_SUBTREE] = config
         self.interface_data[ib_interface.name] = data
         self.__dump_config(data, msg=f"{ib_interface.name}: Prepared config")
+
+    def del_ib_interface(self, ib_interface):
+        iface_data = {Interface.NAME: member.name,
+                      Interface.TYPE: InterfaceType.INFINIBAND,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["iface"].append(iface_data)
 
     def add_ib_child_interface(self, ib_child_interface):
         """Add an InfiniBand child interface object to the net config object.
@@ -2274,6 +2368,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.__dump_config(
             data, msg=f"{ib_child_interface.name}: Prepared config"
         )
+
+    def del_ib_child_interface(self, ib_child_interface):
+        iface_data = {Interface.NAME: member.name,
+                      Interface.TYPE: InterfaceType.INFINIBAND,
+                      Interface.STATE: InterfaceState.ABSENT}
+        self.del_iface["iface"].append(iface_data)
 
     def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.
@@ -2427,3 +2527,25 @@ class NmstateNetConfig(os_net_config.NetConfig):
             "Succesfully applied the network config with nmstate provider"
         )
         return updated_interfaces
+
+
+    def destroy_dpdk_interfaces(self):
+        for iface in self.del_iface["dpdk_port"]:
+            utils.remove_dpdk_interface(iface)
+
+    def destroy(self):
+        """Destroy the network configuration.
+        
+        Clears the network configuration which is previously configured via
+        the same provider.
+        """
+        apply_data = self.set_ifaces(self.del_iface["dpdk"])
+        self.nmstate_apply(apply_data, verify=True)
+        apply_data = self.set_ifaces(self.del_iface["iface"])
+        self.nmstate_apply(apply_data, verify=True)
+        self.destroy_dpdk_interfaces()
+        apply_data = self.set_ifaces(self.del_iface["sriov_pf"])
+        self.nmstate_apply(apply_data, verify=True)
+        if not os.path.exists(BACKUP_NMSTATE_FILES_PATH):
+            os.makedirs(BACKUP_NMSTATE_FILES_PATH)
+        utils.backup_map_files(BACKUP_NMSTATE_FILES_PATH)

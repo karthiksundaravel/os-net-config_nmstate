@@ -45,6 +45,7 @@ import os_net_config
 from os_net_config import common
 from os_net_config import objects
 from os_net_config import utils
+from oslo_concurrency import processutils
 
 
 logger = logging.getLogger(__name__)
@@ -368,6 +369,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # separately if the flag is set. It will be applicable
         # only for NIC Partitioning use cases.
         self.need_vf_config = False
+        self.ethtool_commands = {}
         self.initial_state = netinfo.show_running_config()
         self.__dump_key_config(
             self.initial_state, msg='Initial network settings'
@@ -507,6 +509,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     updated_pfs.append(pf_name)
             else:
                 logger.info("%s: No changes required for PF", pf_name)
+
+        if not self.noop and activate:
+            self.apply_ethtool_commands()
         self.need_pf_config = False
         return updated_pfs
 
@@ -607,6 +612,20 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # Clear the flag once all the VFs are configured
         self.need_vf_config = False
         return updated_pfs
+
+    def apply_ethtool_commands(self):
+        for iface, cmds in self.ethtool_commands.items():
+            for cmd in cmds:
+                try:
+                    logger.info("%s: Running %s", iface, cmd)
+                    err, out = processutils.execute(*cmd.split(" "))
+                except processutils.ProcessExecutionError as e:
+                    logger.error(
+                        "%s: failed to apply %s with error %s",
+                        iface,
+                        cmd,
+                        e,
+                    )
 
     def get_route_tables(self):
         """Generate configuration content for routing tables.
@@ -988,6 +1007,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 )
                 raise os_net_config.ConfigurationError(msg)
 
+    def add_ethtool_cmds(self, iface_name, option, args):
+        if iface_name not in self.ethtool_commands.keys():
+            self.ethtool_commands[iface_name] = []
+        path = utils.ethtool_path()
+        cmd = f"{path} {option} {iface_name} {args}"
+        self.ethtool_commands[iface_name].append(cmd)
+
     def add_ethtool_config(self, iface_name, data, ethtool_options):
         """Add Ethtool configs in nmstate schema format
 
@@ -1099,7 +1125,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     self.add_dispatch_script(
                         data, POST_ACTIVATION, ethtool_script
                         )
-
+                    self.add_ethtool_cmds(iface_name, option, opts)
             else:
                 command_str = '-s ${DEVICE} ' + ethtool_opts
                 command = command_str.split()
@@ -2442,6 +2468,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             apply_data = self.set_ifaces(list(updated_interfaces.values()))
             if activate:
                 self.nmstate_apply(apply_data, verify=True)
+                self.apply_ethtool_commands()
         if del_routes:
             apply_data = self.set_routes(del_routes)
             if activate:

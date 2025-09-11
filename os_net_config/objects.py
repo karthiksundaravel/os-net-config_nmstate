@@ -2233,8 +2233,9 @@ class RemoveNetDevice(object):
             provider_info = f" (provider: {type(self.provider_data).__name__})"
         return (
             f"RemoveNetDevice(name='{self.remove_name}', "
-            f"type='{self.remove_type}', is_removed='{self.is_removed}', "
-            f"provider='{self.provider}', {provider_info})"
+            f"type='{self.remove_type}', {provider_info}), "
+            f"provider='{self.provider}', "
+            f"is_removed='{self.is_removed}'"
         )
 
     @staticmethod

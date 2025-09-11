@@ -3267,4 +3267,3 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         device.is_removed = True
         return
-

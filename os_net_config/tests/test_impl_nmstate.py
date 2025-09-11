@@ -19,7 +19,6 @@ from libnmstate.schema import Ethtool
 
 from libnmstate.schema import InterfaceType
 from libnmstate.schema import OVSBridge
-from libnmstate.schema import OVSInterface
 import os.path
 import random
 import tempfile

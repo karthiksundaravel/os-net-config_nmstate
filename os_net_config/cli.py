@@ -348,14 +348,15 @@ def main(argv=sys.argv, main_logger=None):
     # If the configuration is successful, apply the DCB config
     if has_failures(onc_ret_code) is False:
         if utils.is_dcb_config_required():
-            common.reset_dcb_map()
-
             # Apply the DCB Config
             try:
                 from os_net_config import dcb_config
             except ImportError as e:
-                logger.error("cannot apply DCB configuration: %s", e)
-                return (onc_ret_code | ExitCode.DCB_CONFIG_FAILED)
+                logger.error("DCB configuration failed: %s", e)
+                return get_exit_code(
+                    opts.detailed_exit_codes,
+                    onc_ret_code | ExitCode.DCB_CONFIG_FAILED
+                )
 
             utils.configure_dcb_config_service()
             dcb_apply = dcb_config.DcbApplyConfig()
@@ -394,7 +395,12 @@ def unconfig_provider(provider_name,
             continue
         purge_provider.del_object(obj)
 
-    purge_provider.destroy()
+
+
+    ret = purge_provider.destroy()
+    if ret != 0:
+        logger.error("%s: Unconfig failed", provider_name)
+        return ExitCode.PURGE_FAILED
 
     logger.info("%s: Completed unconfig", provider_name)
     return ExitCode.SUCCESS

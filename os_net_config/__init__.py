@@ -490,6 +490,7 @@ class NetConfig(object):
 
         Print a message and run a command with processutils
         in noop mode, this just prints a message.
+        Raises ProcessExecutionError if 'error' is found in stdout or stderr.
         """
         logger.info("%s%s", self.log_prefix, msg)
         if not self.noop:
@@ -531,7 +532,7 @@ class NetConfig(object):
         """
         msg = 'running ifup on %s: %s' % (iftype, interface)
         try:
-            self.execute(msg, '/sbin/ifup', interface)
+            self.execute(msg, '/sbin/ifup', interface, check_exit_code=True)
         except processutils.ProcessExecutionError as e:
             self.errors.append(e)
 

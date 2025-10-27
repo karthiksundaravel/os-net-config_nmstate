@@ -3185,8 +3185,8 @@ class TestNmstateNetConfig(base.TestCase):
 
     def test_ovs_interface_unsupported_command_type(self):
         """Test OVS interface with unsupported command type raises error"""
-        # Commands other than external-ids are not supported for interfaces
-        ovs_extra = ["set interface {name} other_config:datapath-id=12345"]
+        # Commands other than external-ids and other-config are not supported
+        ovs_extra = ["set interface {name} statistics:rx_bytes=12345"]
         interface = objects.Interface('eno2', ovs_extra=ovs_extra)
         interface.ovs_port = True
 
@@ -3210,7 +3210,7 @@ class TestNmstateNetConfig(base.TestCase):
         # Multiple invalid commands
         ovs_extra = [
             "set interface {name} external-ids:valid=12345",     # Valid
-            "set interface {name} other_config:invalid=test",    # Invalid
+            "set interface {name} junk:invalid=test",    # Invalid
             "set interface eth1 external-ids:mismatch=test"      # Wrong name
         ]
         interface = objects.Interface('eno2', ovs_extra=ovs_extra)

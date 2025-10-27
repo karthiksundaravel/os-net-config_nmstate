@@ -2074,7 +2074,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
             for cmd_map in cfg_eq_val_pair:
                 # TODO(arn): Handle return value (match_count,
                 # mismatch_count) for better error handling
-                self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
+                mc, msc = self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
+                if msc > 0:
+                    msg = (f"ovs_extra: unsupported ovs_extra - {ovs_extra}")
+                    raise os_net_config.ConfigurationError(msg)
 
     def parse_ovs_extra_for_ports(self, ovs_extras, bridge_name, data):
         """Parse ovs extra for VLAN
@@ -2550,6 +2553,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
             members = [member.name for member in bond.members]
             self.member_names[bond.name] = members
             data[Bond.CONFIG_SUBTREE][Bond.PORT] = members
+
+        if bond.ovs_port and bond.ovs_extra:
+            self.parse_ovs_extra_for_iface(
+                bond.ovs_extra,
+                bond.name,
+                data
+            )
 
         self.linuxbond_data[bond.name] = data
         self.__dump_config(data, msg=f"{bond.name}: Prepared config")

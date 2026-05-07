@@ -736,6 +736,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         )
 
                 data += "BONDING_OPTS=\"%s\"\n" % base_opt.bonding_options
+            if base_opt.ovs_extra:
+                if base_opt.bridge_name:
+                    ovs_extra.extend(base_opt.ovs_extra)
+                else:
+                    msg = "Only ovs bridge members can have ovs_extra defined"
+                    raise objects.InvalidConfigException(msg)
         elif isinstance(base_opt, objects.LinuxTeam):
             if base_opt.primary_interface_name:
                 primary_name = base_opt.primary_interface_name
@@ -881,6 +887,21 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                     if ":" in route.next_hop:
                         data += f"IPV6_DEFAULTGW={route.next_hop}\n"
                         data += f"IPV6_DEFAULTDEV={base_opt.name}\n"
+        # If no static addr is configured and IPv6 is globally enabled with
+        # accept_ra disabled, explicitly disable RA to avoid unintended
+        # IPv6 auto-configuration.
+        # Also make sure accept_ra is not set for the "dynamic IPv4 only"
+        # (for backward compatibility with existing ifcfg-* behavior)
+        elif not base_opt.use_dhcp:
+            ipv6_disabled = utils.get_sysctl_value(
+                'net.ipv6.conf.default.disable_ipv6')
+            accept_ra_default = utils.get_sysctl_value(
+                'net.ipv6.conf.default.accept_ra')
+
+            if (ipv6_disabled == '0' and accept_ra_default == '0'):
+                data += "IPV6_AUTOCONF=no\n"
+                data += "IPV6_SET_SYSCTLS=yes\n"
+                data += "IPV6_FORCE_ACCEPT_RA=no\n"
 
         if base_opt.hwaddr:
             data += "HWADDR=%s\n" % base_opt.hwaddr

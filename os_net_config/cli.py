@@ -725,6 +725,13 @@ def config_provider(provider_name,
             except common.SriovVfNotFoundException:
                 if not noop:
                     raise
+                # Under noop, PF numvfs is not applied so VFs may be absent.
+                # Skip this object rather than using an unbound 'obj'.
+                logger.info(
+                    "NOOP: Skipping object; VF device not available yet: %s",
+                    iface_json.get("name", iface_json.get("type", iface_json)),
+                )
+                continue
 
             if not _is_sriovpf_obj_found(obj):
                 provider.add_object(obj)

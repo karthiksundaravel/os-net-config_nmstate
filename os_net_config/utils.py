@@ -935,6 +935,22 @@ def get_vf_devname(pf_name, vfid):
     if vf_name is not None:
         return vf_name
     vf_path = common.get_dev_path(pf_name, f"virtfn{vfid}/net")
+    # Under noop, PF numvfs is not applied so VFs may not exist yet. Avoid
+    # waiting and use a predicted name so the second-pass dry-run (VF/DPDK
+    # objects, bind scripts) can still be prepared and logged.
+    if common.get_noop():
+        if os.path.exists(vf_path) and os.path.isdir(vf_path):
+            vf_nic = os.listdir(vf_path)
+            if len(vf_nic) == 1:
+                return vf_nic[0]
+        # Use the same sriov:<pf>:<vfid> form already used for PCI lookups
+        # so dry-run dumps are unambiguous and schema-aligned.
+        predicted = f"sriov:{pf_name}:{vfid}"
+        logger.info(
+            "%s: NOOP: VF id %d not present; using predicted name %s",
+            pf_name, vfid, predicted,
+        )
+        return predicted
     # The path /sys/class/net/{pf_name}/device/virtfn{vfid}/net/{vf_name}
     # will be available when the default VF driver is bound with the VF.
     # When sriov_drivers_autoprobe=0, the drivers will not be bound with

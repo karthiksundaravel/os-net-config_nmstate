@@ -1690,8 +1690,14 @@ class SriovVF(_BaseOpts):
             device = mapped_nic_names[device]
         pci_address = common.get_pci_address(f"sriov:{device}:{vfid}")
         if pci_address is None:
-            msg = f"{device}:{vfid}: Unable to get pci address"
-            raise os_net_config.ConfigurationError(msg)
+            if not common.get_noop():
+                msg = f"{device}:{vfid}: Unable to get pci address"
+                raise os_net_config.ConfigurationError(msg)
+            logger.info(
+                "%s-%s: NOOP: continuing without PCI address "
+                "(VF not created yet)",
+                device, vfid,
+            )
 
         # When autoprobe is disabled, the VFs will not be bound with the
         # default netdev drivers and the interface names could not be read.
@@ -1706,9 +1712,11 @@ class SriovVF(_BaseOpts):
         # During update or os-net-config re-run, the device could be already
         # bound with vfio-pci and the driver overriding is avoided.
         def_driver = common.get_default_vf_driver(device, vfid)
-        cur_driver = common.get_pci_device_driver(pci_address)
-        if cur_driver is None:
-            common.set_driverctl_override(pci_address, def_driver)
+        cur_driver = None
+        if pci_address is not None:
+            cur_driver = common.get_pci_device_driver(pci_address)
+            if cur_driver is None:
+                common.set_driverctl_override(pci_address, def_driver)
         # The VF device name could be obtained only after binding the default
         # driver. The provider shall identify the VF name from the PF device
         # name (device) and the VF id.

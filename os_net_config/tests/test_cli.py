@@ -25,6 +25,7 @@ import os_net_config
 from os_net_config import cli
 from os_net_config.cli import ExitCode
 from os_net_config import common
+from os_net_config import objects
 from os_net_config.tests import base
 
 
@@ -617,6 +618,51 @@ class TestCli(base.TestCase):
         )
 
         self.assertEqual(ExitCode.ERROR, ret_code)
+
+    def test_config_provider_noop_skips_missing_vf(self):
+        """Under noop, missing VF should continue second pass without crash."""
+
+        class MockProvider(os_net_config.NetConfig):
+            def __init__(self, noop=False, root_dir=''):
+                super(MockProvider, self).__init__(noop, root_dir)
+                self.added_objects = []
+
+            def add_object(self, obj):
+                self.added_objects.append(obj)
+
+            def apply(self, cleanup=False, activate=True,
+                      config_rules_dns=True):
+                return {}
+
+        def mock_load_provider(provider_name, noop, root_dir):
+            return MockProvider(noop, root_dir)
+
+        self.stub_out('os_net_config.cli.load_provider', mock_load_provider)
+
+        pf_obj = objects.SriovPF(name='eth0', numvfs=4)
+        call_count = {'n': 0}
+
+        def mock_object_from_json(iface_json):
+            call_count['n'] += 1
+            if iface_json.get('type') == 'sriov_pf':
+                return pf_obj
+            raise common.SriovVfNotFoundException('vf missing')
+
+        self.stub_out('os_net_config.objects.object_from_json',
+                      mock_object_from_json)
+
+        iface_config = [
+            {"type": "sriov_pf", "name": "eth0", "numvfs": 4},
+            {"type": "interface", "name": "eth0_0"},
+        ]
+        ret_code = cli.config_provider(
+            "nmstate", "network_config", iface_config,
+            "", True, False, False
+        )
+
+        self.assertEqual(ExitCode.SUCCESS, ret_code)
+        # First pass PF + second pass attempt for each iface
+        self.assertGreaterEqual(call_count['n'], 3)
 
     def test_unconfig_provider_success(self):
         """Test unconfig_provider function with successful cleanup"""

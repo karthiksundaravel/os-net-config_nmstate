@@ -506,7 +506,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
             cur_state = self.iface_state(name=pf_name)
             self.remove_empty_dispatch_scripts(cur_state, pf_state)
             if not is_dict_subset(cur_state, pf_state):
-                if not self.noop and activate:
+                if self.noop:
+                    # Dump prepared PF state under noop without applying
+                    logger.info("%s: NOOP: Would apply PF config", pf_name)
+                    self.set_ifaces([pf_state])
+                    updated_pfs.append(pf_name)
+                elif activate:
                     logger.debug("%s: Applying the PF config", pf_name)
                     self.nmstate_apply(self.set_ifaces([pf_state]),
                                        verify=True)
@@ -589,7 +594,18 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
                 if not is_dict_subset(cur_state, pf_state) or \
                         apply_dispatcher_script:
-                    if not self.noop and activate:
+                    if self.noop:
+                        # Dump prepared VF state and bind scripts under noop
+                        logger.info(
+                            "%s: NOOP: Would apply VF parameters "
+                            "(dpdk_vfs=%s linux_vfs=%s)",
+                            pf_state["name"],
+                            ' '.join(dpdk_vfs),
+                            ' '.join(linux_vfs),
+                        )
+                        self.set_ifaces([pf_state])
+                        updated_pfs.append(pf_state["name"])
+                    elif activate:
                         logger.debug(
                             "%s: Applying the VF parameters",
                             pf_state["name"],
@@ -2491,13 +2507,32 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if isinstance(ovs_dpdk_port.members[0], objects.SriovVF):
             # in case of VFs the DPDK driver will be bound using
             # dispatcher script
-            pci_address = ovs_dpdk_port.members[0].pci_address
+            member = ovs_dpdk_port.members[0]
+            pci_address = member.pci_address
+            # Under noop, VF PCI is often unavailable until PF numvfs is
+            # applied. Emit a descriptive placeholder instead of null.
+            if pci_address is None and (self.noop or common.get_noop()):
+                pf_pci = common.get_pci_address(member.device)
+                if pf_pci:
+                    pci_address = (
+                        f"<pending VF PCI: {member.device} "
+                        f"vf{member.vfid}, PF {pf_pci}>"
+                    )
+                else:
+                    pci_address = (
+                        f"<pending VF PCI: {member.device} "
+                        f"vf{member.vfid}>"
+                    )
+                logger.info(
+                    "%s: NOOP: Using placeholder DPDK devargs %s",
+                    ovs_dpdk_port.name, pci_address,
+                )
             utils.update_dpdk_map(ifname,
                                   ovs_dpdk_port.driver)
             # In NIC partitioning scenario with dpdk ports, the VF
             # configuration is skipped since add_sriov_vf() will not be
             # called for dpdk ports. Adding the VF config here.
-            self.__add_sriov_vf_config(ovs_dpdk_port.members[0])
+            self.__add_sriov_vf_config(member)
         else:
             # Bind the DPDK driver for interface objects
             utils.bind_dpdk_interfaces(ifname, ovs_dpdk_port.driver,

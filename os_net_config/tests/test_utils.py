@@ -541,6 +541,15 @@ class TestUtils(base.TestCase):
                           utils.get_vf_devname, "eth1", 1)
         shutil.rmtree(tmpdir)
 
+    def test_get_vf_devname_noop_predicted_name(self):
+        """Under noop, missing VF should use predicted name without waiting."""
+        tmpdir = tempfile.mkdtemp()
+        self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
+        common.set_noop(True)
+
+        self.assertEqual("eth1_1", utils.get_vf_devname("eth1", 1))
+        shutil.rmtree(tmpdir)
+
     def test_get_vf_devname_vf_dir_found_in_map(self):
         tmpdir = tempfile.mkdtemp()
         self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
@@ -596,6 +605,21 @@ class TestUtils(base.TestCase):
     def test_get_pci_address_error(self):
         pci = common.get_pci_address('nic2')
         self.assertEqual(None, pci)
+
+    def test_get_pci_address_sriov_vf_missing_raises(self):
+        tmpdir = tempfile.mkdtemp()
+        self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
+        common.set_noop(False)
+        self.assertRaises(common.SriovVfNotFoundException,
+                          common.get_pci_address, "sriov:eth1:1")
+        shutil.rmtree(tmpdir)
+
+    def test_get_pci_address_sriov_vf_missing_noop_returns_none(self):
+        tmpdir = tempfile.mkdtemp()
+        self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
+        common.set_noop(True)
+        self.assertIsNone(common.get_pci_address("sriov:eth1:1"))
+        shutil.rmtree(tmpdir)
 
     def test_get_dpdk_pci_address_success(self):
         def test_get_dpdk_map():
@@ -1957,6 +1981,24 @@ dpdk {
         self.prepare_sysfs("eth1", "0000:8a:00.1", "vfio-pci")
         driver = common.get_pci_device_driver("0000:8a:00.1")
         self.assertEqual('vfio-pci', driver)
+
+    def test_get_pci_device_driver_none_pci(self):
+        self.assertIsNone(common.get_pci_device_driver(None))
+
+    def test_is_vf_driver_change_required_missing_vf_pci(self):
+        """Missing VF PCI (noop before numvfs) means bind scripts needed."""
+        common.set_noop(True)
+        tmpdir = tempfile.mkdtemp()
+        self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
+        try:
+            self.assertTrue(
+                common.is_vf_driver_change_required('eth1', [], ['1'])
+            )
+            self.assertTrue(
+                common.is_vf_driver_change_required('eth1', ['1'], [])
+            )
+        finally:
+            shutil.rmtree(tmpdir)
 
     def test_set_driverctl_override_noop_skips_driverctl(self):
         """noop must log intent and not run driverctl."""

@@ -353,6 +353,8 @@ def get_pci_device_driver(pci_addr):
     :param pci_addr: PCI address of the the device
     :returns: driver attached to the PCI device
     """
+    if not pci_addr:
+        return None
     driver_path = get_pci_dev_path(pci_addr, 'driver')
     try:
         driver = os.readlink(driver_path)
@@ -415,6 +417,15 @@ def get_pci_address(name):
         # DPDK driver. So there is no need to run through the DPDK map
         # for retrieving the corresponding pci address
         if vfid:
+            # Under noop, PF numvfs is not applied so virtfnN may be absent.
+            # Return None so object construction can continue the dry-run.
+            if get_noop():
+                logger.info(
+                    "%s:%s: NOOP: VF not present yet; "
+                    "PCI address unavailable until PF numvfs is applied",
+                    ifname, vfid,
+                )
+                return None
             msg = f"{ifname}:{vfid} Unable to get pci address"
             raise SriovVfNotFoundException(msg)
         logger.info(
@@ -549,6 +560,13 @@ def is_vf_driver_change_required(pf, linux_vfs, dpdk_vfs):
         )
         for vf in linux_vfs:
             pci_address = get_pci_address(f"sriov:{pf}:{vf}")
+            # Missing VF PCI (e.g. noop before numvfs) means bind is needed
+            if pci_address is None:
+                logger.info(
+                    "%s-%s: VF PCI unavailable; driver change required",
+                    pf, vf,
+                )
+                return True
             driver = get_pci_device_driver(pci_address)
             if driver != lnx_driver:
                 logger.info("%s-%s: driver expected: %s , actual: %s",
@@ -557,6 +575,12 @@ def is_vf_driver_change_required(pf, linux_vfs, dpdk_vfs):
     if dpdk_vfs:
         for vf in dpdk_vfs:
             pci_address = get_pci_address(f"sriov:{pf}:{vf}")
+            if pci_address is None:
+                logger.info(
+                    "%s-%s: VF PCI unavailable; driver change required",
+                    pf, vf,
+                )
+                return True
             driver = get_pci_device_driver(pci_address)
             if driver != "vfio-pci":
                 logger.error(

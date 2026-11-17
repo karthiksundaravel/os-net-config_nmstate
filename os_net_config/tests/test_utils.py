@@ -541,6 +541,15 @@ class TestUtils(base.TestCase):
                           utils.get_vf_devname, "eth1", 1)
         shutil.rmtree(tmpdir)
 
+    def test_get_vf_devname_noop_predicted_name(self):
+        """Under noop, missing VF should use predicted name without waiting."""
+        tmpdir = tempfile.mkdtemp()
+        self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
+        common.set_noop(True)
+
+        self.assertEqual("eth1_1", utils.get_vf_devname("eth1", 1))
+        shutil.rmtree(tmpdir)
+
     def test_get_vf_devname_vf_dir_found_in_map(self):
         tmpdir = tempfile.mkdtemp()
         self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)

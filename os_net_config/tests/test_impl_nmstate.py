@@ -1825,6 +1825,113 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertEqual(yaml.safe_load(exp_pf_config),
                          list(self.provider.sriov_pf_data.values()))
 
+    def test_apply_pf_config_noop_dumps_prepared_state(self):
+        """Under noop, PF apply should dump prepared state without nmstate."""
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+        self.provider.noop = True
+
+        dumped = []
+
+        def stub_set_ifaces(self_provider, iface_data):
+            dumped.append(iface_data)
+            return {'interfaces': iface_data}
+
+        self.stub_out('os_net_config.impl_nmstate.NmstateNetConfig.set_ifaces',
+                      stub_set_ifaces)
+
+        def stub_iface_state(self_provider, name=''):
+            return {}
+
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.iface_state',
+            stub_iface_state)
+        applied = []
+
+        def stub_nmstate_apply(self_provider, new_state, verify=True):
+            applied.append(new_state)
+
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.nmstate_apply',
+            stub_nmstate_apply)
+
+        pf = objects.SriovPF(name='nic3', numvfs=10)
+        self.provider.add_sriov_pf(pf)
+        updated = self.provider.apply_pf_config(True)
+
+        self.assertEqual(['eth2'], updated)
+        self.assertEqual(1, len(dumped))
+        self.assertEqual([], applied)
+
+    def test_apply_vf_config_noop_dumps_bind_script(self):
+        """Under noop, VF apply should dump PF state including bind script."""
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+        self.provider.noop = True
+        self.stub_out('os_net_config.common.get_pci_address',
+                      stub_get_pci_address)
+
+        dumped = []
+
+        def stub_set_ifaces(self_provider, iface_data):
+            dumped.append(iface_data)
+            return {'interfaces': iface_data}
+
+        self.stub_out('os_net_config.impl_nmstate.NmstateNetConfig.set_ifaces',
+                      stub_set_ifaces)
+
+        def stub_iface_state(self_provider, name=''):
+            return {}
+
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.iface_state',
+            stub_iface_state)
+
+        def stub_is_vf_driver_change_required(*a, **k):
+            return True
+
+        self.stub_out(
+            'os_net_config.common.is_vf_driver_change_required',
+            stub_is_vf_driver_change_required)
+        applied = []
+
+        def stub_nmstate_apply(self_provider, new_state, verify=True):
+            applied.append(new_state)
+
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.nmstate_apply',
+            stub_nmstate_apply)
+
+        pf = objects.SriovPF(name='nic2', numvfs=10)
+        self.provider.add_sriov_pf(pf)
+
+        ovs_config = """
+        type: ovs_user_bridge
+        name: br-dpdk2
+        members:
+          -
+            type: ovs_dpdk_port
+            name: dpdk2
+            members:
+              -
+                type: sriov_vf
+                device: nic2
+                vfid: 2
+        """
+        ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
+        self.provider.add_sriov_vf(ovs_obj.members[0].members[0])
+        self.provider.add_ovs_dpdk_port(ovs_obj.members[0])
+
+        updated = self.provider.apply_vf_config(True)
+
+        self.assertEqual(['eth1'], updated)
+        self.assertEqual(1, len(dumped))
+        self.assertEqual([], applied)
+        prepared = dumped[0][0]
+        self.assertIn('dispatch', prepared)
+        post = prepared['dispatch']['post-activation']
+        self.assertIn('dpdk_vfs="2"', post)
+
     def test_sriov_pf_with_switchdev(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping

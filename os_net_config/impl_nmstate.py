@@ -506,7 +506,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
             cur_state = self.iface_state(name=pf_name)
             self.remove_empty_dispatch_scripts(cur_state, pf_state)
             if not is_dict_subset(cur_state, pf_state):
-                if not self.noop and activate:
+                if self.noop:
+                    # Dump prepared PF state under noop without applying
+                    logger.info("%s: NOOP: Would apply PF config", pf_name)
+                    self.set_ifaces([pf_state])
+                    updated_pfs.append(pf_name)
+                elif activate:
                     logger.debug("%s: Applying the PF config", pf_name)
                     self.nmstate_apply(self.set_ifaces([pf_state]),
                                        verify=True)
@@ -589,7 +594,18 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
                 if not is_dict_subset(cur_state, pf_state) or \
                         apply_dispatcher_script:
-                    if not self.noop and activate:
+                    if self.noop:
+                        # Dump prepared VF state and bind scripts under noop
+                        logger.info(
+                            "%s: NOOP: Would apply VF parameters "
+                            "(dpdk_vfs=%s linux_vfs=%s)",
+                            pf_state["name"],
+                            ' '.join(dpdk_vfs),
+                            ' '.join(linux_vfs),
+                        )
+                        self.set_ifaces([pf_state])
+                        updated_pfs.append(pf_state["name"])
+                    elif activate:
                         logger.debug(
                             "%s: Applying the VF parameters",
                             pf_state["name"],
